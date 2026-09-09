@@ -22,6 +22,20 @@ song.setCell(orderPos: 1, row: 2, channel: 1, cell: TrackerCell(note: 64))
 let timeline = PlaybackTimeline(song: song)
 check(timeline.notes.map(\.beat) == [0.75, 2.5], "Only grid rows determine note times, with non-64-row patterns")
 check(timeline.notes[0].voice.instrumentID == 42, "Instrument column resolves one-based index, not ID")
+// A channel change must create a new instrument snapshot. Earlier tracker
+// cells keep their one-based instrument index and therefore their old sound.
+var switchedInstrumentSong = SongModel()
+switchedInstrumentSong.orders = [0]
+switchedInstrumentSong.patterns = [PatternModel(id: 0, name: "Snapshots", rows: 4)]
+switchedInstrumentSong.instruments = [
+    InstrumentModel(id: 10, name: "First sound", kind: .dls, gmProgram: 0),
+    InstrumentModel(id: 11, name: "Second sound", kind: .dls, gmProgram: 40)
+]
+switchedInstrumentSong.channelInstruments = [11, nil, nil, nil, nil, nil, nil, nil]
+switchedInstrumentSong.setCell(orderPos: 0, row: 0, channel: 0, cell: TrackerCell(note: 60, instrument: 1))
+switchedInstrumentSong.setCell(orderPos: 0, row: 1, channel: 0, cell: TrackerCell(note: 64, instrument: 2))
+check(PlaybackTimeline(song: switchedInstrumentSong).notes.map(\.voice.instrumentID) == [10, 11],
+      "Changing a channel sound preserves the instruments of existing notes")
 check(timeline.beat(order: 1, row: 5) == 3.25, "Playback can start at a nonzero row and order")
 check(timeline.position(at: 1.99, nearest: true)?.order == 1, "Live quantization crosses an order boundary")
 check(timeline.position(at: 3.26)?.row == 5, "Recording uses actual playback position")

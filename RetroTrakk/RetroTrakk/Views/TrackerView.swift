@@ -106,6 +106,7 @@ struct TrackerView: View {
     @EnvironmentObject var tracker: TrackerEngine
     @FocusState private var focused: Bool
     @State private var gridWidth: CGFloat = 800
+    @State private var keyboardMonitor: Any?
 
     private var channelWidth: CGFloat {
         let available = max(CGFloat(SongModel.channelCount) * minChannelWidth, gridWidth - trackerGutterWidth)
@@ -161,7 +162,16 @@ struct TrackerView: View {
         .background(Color(nsColor: .textBackgroundColor))
         .focusable()
         .focused($focused)
-        .onAppear { focused = true }
+        .onAppear {
+            focused = true
+            installKeyboardMonitor()
+        }
+        .onDisappear { removeKeyboardMonitor() }
+        .onReceive(NotificationCenter.default.publisher(for: .retroFocusTracker)) { _ in
+            // Sidebar-knappen tar annars tillbaka fokus i slutet av samma
+            // klick. Vänta till nästa UI-varv innan trackern blir responder.
+            DispatchQueue.main.async { focused = true }
+        }
         .onKeyPress { press in
             handleKey(press)
         }
@@ -382,6 +392,35 @@ struct TrackerView: View {
         if chars == "-" { tracker.octave = max(0, tracker.octave - 1); return .handled }
         if chars == "+" || chars == "=" { tracker.octave = min(8, tracker.octave + 1); return .handled }
         return .ignored
+    }
+
+    // Sidopanelens knappar blir first responder när man väljer ett ljud.
+    // Fånga bara pianotangenter globalt så att de fortfarande spelar/skrivs
+    // in i trackern, utan att kapa vanlig textinmatning i sök- och BPM-fält.
+    private func installKeyboardMonitor() {
+        guard keyboardMonitor == nil else { return }
+        keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
+            guard !isEditingText(),
+                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                  let characters = event.charactersIgnoringModifiers?.lowercased(),
+                  let note = noteForKey(characters, octave: tracker.octave) else {
+                return event
+            }
+            tracker.stepInput(note: note)
+            return nil
+        }
+    }
+
+    private func removeKeyboardMonitor() {
+        if let keyboardMonitor {
+            NSEvent.removeMonitor(keyboardMonitor)
+            self.keyboardMonitor = nil
+        }
+    }
+
+    private func isEditingText() -> Bool {
+        guard let responder = NSApp.keyWindow?.firstResponder else { return false }
+        return responder is NSTextView || responder is NSTextField
     }
 }
 

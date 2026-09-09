@@ -369,9 +369,6 @@ public final class TrackerEngine: ObservableObject {
         guard channel >= 0, channel < SongModel.channelCount,
               song.channelEnabled[channel],
               let inst = instrumentFor(channel: channel) else { return }
-        // A factory patch is loaded by the transport staging graph. Do not
-        // attach a new SourceNode from keyboard/edit input on the UI thread.
-        guard inst.kind != .surge else { return }
         audio?.previewOn(inst: inst, midiNote: note, velocity: velocity)
         if autoOff {
             let iid = inst.id
@@ -667,28 +664,15 @@ public final class TrackerEngine: ObservableObject {
         }
     }
 
-    private func updateChannelCells(channel ch: Int, toInstrumentIndex newIdx: Int) {
-        let newInstNum = UInt8(newIdx + 1)
-        for pIdx in song.patterns.indices {
-            for rIdx in 0..<song.patterns[pIdx].rowCount {
-                let cell = song.patterns[pIdx].cells[rIdx][ch]
-                if !cell.isEmpty {
-                    var updatedCell = cell
-                    updatedCell.instrument = newInstNum
-                    song.patterns[pIdx].cells[rIdx][ch] = updatedCell
-                }
-            }
-        }
-    }
-
     /// Tilldela ett instrument från katalogen till en kanal.
     public func assignInstrument(_ def: InstrumentDefinition, toChannel ch: Int) {
         guard ch >= 0, ch < SongModel.channelCount else { return }
         addRecent(def.id)
         currentDefinition = def
-        let updated = song
-        let existing = updated.instruments.firstIndex { $0.id == updated.channelInstruments[ch] }
-        let id = existing.map { updated.instruments[$0].id } ?? ((updated.instruments.map(\.id).max() ?? -1) + 1)
+        // Tracker-celler lagrar sitt instrument som ett index. Lägg därför
+        // alltid till en ny snapshot när kanalen byter ljud: redan inspelade
+        // noter måste fortsätta peka på sitt ursprungliga instrument.
+        let id = (song.instruments.map(\.id).max() ?? -1) + 1
         let inst = InstrumentModel(
             id: id,
             name: def.displayName,
@@ -702,18 +686,10 @@ public final class TrackerEngine: ObservableObject {
             midiChannel: Int(def.defaultMidiChannel)
         )
         var current = song
-        var instIndex: Int
-        if let index = current.instruments.firstIndex(where: { $0.id == id }) {
-            current.instruments[index] = inst
-            instIndex = index
-        } else {
-            current.instruments.append(inst)
-            instIndex = current.instruments.count - 1
-        }
+        current.instruments.append(inst)
         current.channelInstruments[ch] = id
         song = current
-
-        updateChannelCells(channel: ch, toInstrumentIndex: instIndex)
+        NotificationCenter.default.post(name: .retroFocusTracker, object: nil)
 
         // Surge patches are staged when transport/preview explicitly asks for
         // audio. Selecting from the large factory list must stay instant.
@@ -729,9 +705,9 @@ public final class TrackerEngine: ObservableObject {
         song.channelInstruments[ch] = instrumentId
         if let iid = instrumentId,
            let instIdx = song.instruments.firstIndex(where: { $0.id == iid }) {
-            updateChannelCells(channel: ch, toInstrumentIndex: instIdx)
             _ = audio?.ensureInstrument(song.instruments[instIdx])
             syncCurrentDefinitionWithChannel(ch)
+            NotificationCenter.default.post(name: .retroFocusTracker, object: nil)
             previewOn(channel: ch, note: 60, velocity: 100, autoOff: true)
         }
     }
@@ -745,26 +721,17 @@ public final class TrackerEngine: ObservableObject {
     public func assignSound(name: String, kind: InstrumentKind, gmProgram: Int = 0,
                             midiChannel: Int = 0, path: String?, toChannel ch: Int) {
         guard ch >= 0, ch < SongModel.channelCount else { return }
-        let updated = song
-        let existing = updated.instruments.firstIndex { $0.id == updated.channelInstruments[ch] }
-        let id = existing.map { updated.instruments[$0].id } ?? ((updated.instruments.map(\.id).max() ?? -1) + 1)
+        let id = (song.instruments.map(\.id).max() ?? -1) + 1
         let inst = InstrumentModel(id: id, name: name, kind: kind, gmProgram: gmProgram,
                                    samplePath: path, midiChannel: midiChannel)
         let apply: () -> Void = { [weak self] in
             guard let self else { return }
             var current = self.song
-            var instIndex: Int
-            if let index = current.instruments.firstIndex(where: { $0.id == id }) {
-                current.instruments[index] = inst
-                instIndex = index
-            } else {
-                current.instruments.append(inst)
-                instIndex = current.instruments.count - 1
-            }
+            current.instruments.append(inst)
             current.channelInstruments[ch] = id
             self.song = current
-            self.updateChannelCells(channel: ch, toInstrumentIndex: instIndex)
             self.syncCurrentDefinitionWithChannel(ch)
+            NotificationCenter.default.post(name: .retroFocusTracker, object: nil)
             self.previewOn(channel: ch, note: 60, velocity: 100, autoOff: true)
         }
         if path != nil {

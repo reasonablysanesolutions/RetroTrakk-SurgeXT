@@ -105,4 +105,5 @@ extension Notification.Name {
     static let retroSaveAs = Notification.Name("retroSaveAs")
     static let retroOpen = Notification.Name("retroOpen")
     static let retroLicenses = Notification.Name("retroLicenses")
+    static let retroFocusTracker = Notification.Name("retroFocusTracker")
 }
