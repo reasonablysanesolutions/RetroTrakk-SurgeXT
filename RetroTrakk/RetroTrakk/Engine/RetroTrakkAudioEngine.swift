@@ -24,6 +24,9 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     private var voiceModels: [PlaybackTimeline.Voice: InstrumentModel] = [:]
     private var sequencer: AVAudioSequencer!
     private var tracks: [PlaybackTimeline.Voice: AVMusicTrack] = [:]
+    // AVAudioSequencer rejects start when a project contains only source-node
+    // voices. Keep an event-free track as the native transport's anchor.
+    private var transportTrack: AVMusicTrack?
     private var sequenceNotes: [PlaybackTimeline.Note] = []
     private var sequenceSteps = 4.0
     private var sequenceLength = 0.0
@@ -468,7 +471,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         }
 
         for track in sequencer.tracks.reversed() { sequencer.removeTrack(track) }
-        tracks.removeAll(); sequenceNotes = []
+        tracks.removeAll(); transportTrack = nil; sequenceNotes = []
         if hasTempo {
             sequencer.tempoTrack.clearEvents(in: AVBeatRange(start: 0, length: AVMusicTimeStampEndOfTrack))
         }
@@ -487,6 +490,11 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         hasTempo = true
         sequencer.rate = 1
         try updatePlayback(song: song, timeline: timeline)
+        if tracks.isEmpty {
+            let track = sequencer.createAndAppendTrack()
+            track.lengthInBeats = timeline.length
+            transportTrack = track
+        }
         sequencer.prepareToPlay()
         try startEngineIfNeeded()
 

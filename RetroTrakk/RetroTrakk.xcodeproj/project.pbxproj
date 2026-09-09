@@ -28,6 +28,7 @@
 		B121000000000000000000001 /* SurgePresetCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F124000000000000000000001 /* SurgePresetCatalog.swift */; };
 		A102000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A101000000000000000000001 /* Assets.xcassets */; };
 		A105000000000000000000001 /* SurgeData in Resources */ = {isa = PBXBuildFile; fileRef = F121000000000000000000001 /* SurgeData */; };
+		A106000000000000000000001 /* SurgeRuntimeData in Resources */ = {isa = PBXBuildFile; fileRef = F125000000000000000000001 /* SurgeRuntimeData */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -53,7 +54,8 @@
 		F123000000000000000000001 /* RetroTrakk-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "RetroTrakk-Bridging-Header.h"; sourceTree = "<group>"; };
 		F124000000000000000000001 /* SurgePresetCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgePresetCatalog.swift; sourceTree = "<group>"; };
 		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		F121000000000000000000001 /* SurgeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeData; path = ../Vendor/surge/resources/data; sourceTree = SOURCE_ROOT; };
+		F121000000000000000000001 /* SurgeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeData; path = Resources/SurgeData; sourceTree = SOURCE_ROOT; };
+		F125000000000000000000001 /* SurgeRuntimeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeRuntimeData; path = Resources/SurgeRuntimeData; sourceTree = SOURCE_ROOT; };
 		999999999999999999999999 /* RetroTrakk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RetroTrakk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -142,6 +144,7 @@
 			isa = PBXGroup;
 			children = (
 				F121000000000000000000001 /* SurgeData */,
+				F125000000000000000000001 /* SurgeRuntimeData */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -207,6 +210,7 @@
 			files = (
 				A102000000000000000000001 /* Assets.xcassets in Resources */,
 				A105000000000000000000001 /* SurgeData in Resources */,
+				A106000000000000000000001 /* SurgeRuntimeData in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

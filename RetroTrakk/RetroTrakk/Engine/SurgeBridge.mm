@@ -21,11 +21,20 @@ struct RTKSurge {
 RTKSurge *rtk_surge_create(const char *data_path, double sample_rate) {
     try {
         auto result = std::make_unique<RTKSurge>();
+        // RetroTrakk loads a known, bundled factory patch by absolute path.  The
+        // host-facing Surge browser catalogue is therefore unnecessary here and
+        // would scan the user's global wavetable folders on the UI thread.
+        SurgeStorage::skipLoadWtAndPatch = true;
+        SurgeStorage::skipUserPresetScans = true;
         result->synth = std::make_unique<SurgeSynthesizer>(&result->host, data_path ? data_path : "");
+        SurgeStorage::skipLoadWtAndPatch = false;
+        SurgeStorage::skipUserPresetScans = false;
         result->synth->setSamplerate(static_cast<float>(sample_rate));
         result->synth->time_data.tempo = 125.0;
         return result.release();
     } catch (...) {
+        SurgeStorage::skipLoadWtAndPatch = false;
+        SurgeStorage::skipUserPresetScans = false;
         return nullptr;
     }
 }

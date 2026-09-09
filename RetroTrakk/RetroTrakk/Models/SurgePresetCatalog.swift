@@ -36,7 +36,7 @@ public enum SurgePresetCatalog {
     }
 
     private static func factoryRootURL() -> URL? {
-        if let resource = Bundle.main.resourceURL?.appendingPathComponent("data", isDirectory: true)
+        if let resource = Bundle.main.resourceURL?.appendingPathComponent("SurgeData", isDirectory: true)
             .appendingPathComponent(factoryDirectory, isDirectory: true),
            FileManager.default.fileExists(atPath: resource.path) {
             return resource

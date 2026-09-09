@@ -26,7 +26,7 @@ final class SurgeVoiceNode {
     init?(patchURL: URL, sampleRate: Double = 44_100) {
         self.sampleRate = sampleRate
         scratch = .allocate(capacity: scratchFrames * 2)
-        guard let dataURL = Bundle.main.resourceURL?.appendingPathComponent("data", isDirectory: true) else {
+        guard let dataURL = Bundle.main.resourceURL?.appendingPathComponent("SurgeRuntimeData", isDirectory: true) else {
             scratch.deallocate(); return nil
         }
         surge = rtk_surge_create(dataURL.path, sampleRate)
