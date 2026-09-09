@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# Surge XT is built locally from the pinned submodule.
+.surge-build/
+
+# RetroTrakk-SurgeXT ships Surge presets instead of the legacy MuseScore SoundFont.
+NovaTracker/NovaTracker/Resources/SoundFonts/
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+build/
+DerivedData/
+*.moved-aside
+*.xcuserstate
+*.xcuserdata
+xcuserdata/
+
+# Swift / Builds / Backups
+.build/
+.backups/
+*.profraw
+*.dSYM
+
+# Temporary test directories
+/tmp/retrotrakk-verification.*

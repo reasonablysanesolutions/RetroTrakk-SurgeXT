@@ -1,0 +1,368 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		B101000000000000000000001 /* RetroTrakkApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F101000000000000000000001 /* RetroTrakkApp.swift */; };
+		B102000000000000000000001 /* SongModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F102000000000000000000001 /* SongModel.swift */; };
+		B103000000000000000000001 /* AudioUnitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F103000000000000000000001 /* AudioUnitManager.swift */; };
+		B104000000000000000000001 /* MIDIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F104000000000000000000001 /* MIDIEngine.swift */; };
+		B105000000000000000000001 /* RetroTrakkAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F105000000000000000000001 /* RetroTrakkAudioEngine.swift */; };
+		B106000000000000000000001 /* TrackerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F106000000000000000000001 /* TrackerEngine.swift */; };
+		B107000000000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F107000000000000000000001 /* ContentView.swift */; };
+		B108000000000000000000001 /* TrackerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F108000000000000000000001 /* TrackerView.swift */; };
+		B109000000000000000000001 /* TransportBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F109000000000000000000001 /* TransportBar.swift */; };
+		B110000000000000000000001 /* Sidebars.swift in Sources */ = {isa = PBXBuildFile; fileRef = F110000000000000000000001 /* Sidebars.swift */; };
+		B111000000000000000000001 /* InstrumentBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F111000000000000000000001 /* InstrumentBrowser.swift */; };
+		B112000000000000000000001 /* AppleLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = F112000000000000000000001 /* AppleLibrary.swift */; };
+		B113000000000000000000001 /* InstrumentDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = F113000000000000000000001 /* InstrumentDefinition.swift */; };
+		B114000000000000000000001 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F114000000000000000000001 /* OpenSourceLicensesView.swift */; };
+		B117000000000000000000001 /* JGXProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = F117000000000000000000001 /* JGXProject.swift */; };
+		B118000000000000000000001 /* JGXDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = F118000000000000000000001 /* JGXDocument.swift */; };
+		A102000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A101000000000000000000001 /* Assets.xcassets */; };
+		A103000000000000000000001 /* MuseScore_General.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = F115000000000000000000001 /* MuseScore_General.sf2 */; };
+		A104000000000000000000001 /* MuseScore_General_License.md in Resources */ = {isa = PBXBuildFile; fileRef = F116000000000000000000001 /* MuseScore_General_License.md */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F101000000000000000000001 /* RetroTrakkApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroTrakkApp.swift; sourceTree = "<group>"; };
+		F102000000000000000000001 /* SongModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongModel.swift; sourceTree = "<group>"; };
+		F103000000000000000000001 /* AudioUnitManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioUnitManager.swift; sourceTree = "<group>"; };
+		F104000000000000000000001 /* MIDIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIEngine.swift; sourceTree = "<group>"; };
+		F105000000000000000000001 /* RetroTrakkAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetroTrakkAudioEngine.swift; sourceTree = "<group>"; };
+		F106000000000000000000001 /* TrackerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerEngine.swift; sourceTree = "<group>"; };
+		F107000000000000000000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		F108000000000000000000001 /* TrackerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerView.swift; sourceTree = "<group>"; };
+		F109000000000000000000001 /* TransportBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportBar.swift; sourceTree = "<group>"; };
+		F110000000000000000000001 /* Sidebars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebars.swift; sourceTree = "<group>"; };
+		F111000000000000000000001 /* InstrumentBrowser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentBrowser.swift; sourceTree = "<group>"; };
+		F112000000000000000000001 /* AppleLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleLibrary.swift; sourceTree = "<group>"; };
+		F113000000000000000000001 /* InstrumentDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstrumentDefinition.swift; sourceTree = "<group>"; };
+		F114000000000000000000001 /* OpenSourceLicensesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceLicensesView.swift; sourceTree = "<group>"; };
+		F117000000000000000000001 /* JGXProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXProject.swift; sourceTree = "<group>"; };
+		F118000000000000000000001 /* JGXDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXDocument.swift; sourceTree = "<group>"; };
+		F115000000000000000000001 /* MuseScore_General.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SoundFonts/MuseScore_General.sf2; sourceTree = "<group>"; };
+		F116000000000000000000001 /* MuseScore_General_License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Licenses/MuseScore_General_License.md; sourceTree = "<group>"; };
+		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		999999999999999999999999 /* RetroTrakk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RetroTrakk.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BBBBBBBBBBBBBBBBBBBBBBBB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		222222222222222222222222 /* RetroTrakk Project */ = {
+			isa = PBXGroup;
+			children = (
+				444444444444444444444444 /* RetroTrakk */,
+				333333333333333333333333 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		333333333333333333333333 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				999999999999999999999999 /* RetroTrakk.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		444444444444444444444444 /* RetroTrakk */ = {
+			isa = PBXGroup;
+			children = (
+				F101000000000000000000001 /* RetroTrakkApp.swift */,
+				A101000000000000000000001 /* Assets.xcassets */,
+				555555555555555555555555 /* Models */,
+				666666666666666666666666 /* Engine */,
+				777777777777777777777777 /* Views */,
+				888888888888888888888889 /* Resources */,
+			);
+			path = NovaTracker;
+			sourceTree = "<group>";
+		};
+		555555555555555555555555 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F102000000000000000000001 /* SongModel.swift */,
+				F113000000000000000000001 /* InstrumentDefinition.swift */,
+				F117000000000000000000001 /* JGXProject.swift */,
+				F118000000000000000000001 /* JGXDocument.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		666666666666666666666666 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				F103000000000000000000001 /* AudioUnitManager.swift */,
+				F104000000000000000000001 /* MIDIEngine.swift */,
+				F105000000000000000000001 /* RetroTrakkAudioEngine.swift */,
+				F106000000000000000000001 /* TrackerEngine.swift */,
+				F112000000000000000000001 /* AppleLibrary.swift */,
+			);
+			path = Engine;
+			sourceTree = "<group>";
+		};
+		777777777777777777777777 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				F107000000000000000000001 /* ContentView.swift */,
+				F108000000000000000000001 /* TrackerView.swift */,
+				F109000000000000000000001 /* TransportBar.swift */,
+				F110000000000000000000001 /* Sidebars.swift */,
+				F111000000000000000000001 /* InstrumentBrowser.swift */,
+				F114000000000000000000001 /* OpenSourceLicensesView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		888888888888888888888889 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F115000000000000000000001 /* MuseScore_General.sf2 */,
+				F116000000000000000000001 /* MuseScore_General_License.md */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		888888888888888888888888 /* RetroTrakk */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EEEEEEEEEEEEEEEEEEEEEEEE /* Build configuration list for PBXNativeTarget "RetroTrakk" */;
+			buildPhases = (
+				AAAAAAAAAAAAAAAABBBBBBBB /* Sources */,
+				BBBBBBBBBBBBBBBBBBBBBBBB /* Frameworks */,
+				CCCCCCCCCCCCCCCCCCCCCCCC /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = RetroTrakk;
+			productName = RetroTrakk;
+			productReference = 999999999999999999999999 /* RetroTrakk.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		111111111111111111111111 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2600;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					888888888888888888888888 = {
+						CreatedOnToolsVersion = 26.0;
+					};
+				};
+			};
+			buildConfigurationList = DDDDDDDDDDDDDDDDDDDDDDDD /* Build configuration list for PBXProject "RetroTrakk" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				sv,
+			);
+			mainGroup = 222222222222222222222222 /* RetroTrakk Project */;
+			productRefGroup = 333333333333333333333333 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				888888888888888888888888 /* RetroTrakk */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		CCCCCCCCCCCCCCCCCCCCCCCC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A102000000000000000000001 /* Assets.xcassets in Resources */,
+				A103000000000000000000001 /* MuseScore_General.sf2 in Resources */,
+				A104000000000000000000001 /* MuseScore_General_License.md in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AAAAAAAAAAAAAAAABBBBBBBB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B101000000000000000000001 /* RetroTrakkApp.swift in Sources */,
+				B102000000000000000000001 /* SongModel.swift in Sources */,
+				B103000000000000000000001 /* AudioUnitManager.swift in Sources */,
+				B104000000000000000000001 /* MIDIEngine.swift in Sources */,
+				B105000000000000000000001 /* RetroTrakkAudioEngine.swift in Sources */,
+				B106000000000000000000001 /* TrackerEngine.swift in Sources */,
+				B107000000000000000000001 /* ContentView.swift in Sources */,
+				B108000000000000000000001 /* TrackerView.swift in Sources */,
+				B109000000000000000000001 /* TransportBar.swift in Sources */,
+				B110000000000000000000001 /* Sidebars.swift in Sources */,
+				B111000000000000000000001 /* InstrumentBrowser.swift in Sources */,
+				B112000000000000000000001 /* AppleLibrary.swift in Sources */,
+				B113000000000000000000001 /* InstrumentDefinition.swift in Sources */,
+				B114000000000000000000001 /* OpenSourceLicensesView.swift in Sources */,
+				B117000000000000000000001 /* JGXProject.swift in Sources */,
+				B118000000000000000000001 /* JGXDocument.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F001000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F002000000000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		F003000000000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NovaTracker/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = RetroTrakk;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "RetroTrakk (C) 2026 Jimmy Granlund";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.9;
+				PRODUCT_BUNDLE_IDENTIFIER = com.retrotrakk.app;
+				PRODUCT_NAME = RetroTrakk;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F004000000000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_ASSET_PATHS = "";
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = NovaTracker/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = RetroTrakk;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "RetroTrakk (C) 2026 Jimmy Granlund";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.9;
+				PRODUCT_BUNDLE_IDENTIFIER = com.retrotrakk.app;
+				PRODUCT_NAME = RetroTrakk;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		DDDDDDDDDDDDDDDDDDDDDDDD /* Build configuration list for PBXProject "RetroTrakk" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F001000000000000000000001 /* Debug */,
+				F002000000000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		EEEEEEEEEEEEEEEEEEEEEEEE /* Build configuration list for PBXNativeTarget "RetroTrakk" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F003000000000000000000001 /* Debug */,
+				F004000000000000000000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 111111111111111111111111 /* Project object */;
+}
