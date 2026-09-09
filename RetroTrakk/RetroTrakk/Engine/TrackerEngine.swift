@@ -5,6 +5,10 @@ import Foundation
 import SwiftUI
 import Combine
 
+extension Notification.Name {
+    static let retroFocusTracker = Notification.Name("retroFocusTracker")
+}
+
 /// En punkt i tracker-griden (rad, kanal). Används för musmarkering.
 public struct SelPoint: Hashable, Sendable {
     public var row: Int
@@ -263,6 +267,12 @@ public final class TrackerEngine: ObservableObject {
     private var lastStepNote: UInt8? = nil
     private var lastStepTime = Date.distantPast
     private var lastStepPoint: SelPoint? = nil
+
+    private func resetComputerKeyboardChord() {
+        lastStepNote = nil
+        lastStepTime = .distantPast
+        lastStepPoint = nil
+    }
 
     private func lastPatternRow() -> Int {
         guard let pid = currentPatternID,
@@ -689,6 +699,7 @@ public final class TrackerEngine: ObservableObject {
         current.instruments.append(inst)
         current.channelInstruments[ch] = id
         song = current
+        resetComputerKeyboardChord()
         NotificationCenter.default.post(name: .retroFocusTracker, object: nil)
 
         // Surge patches are staged when transport/preview explicitly asks for
@@ -703,6 +714,7 @@ public final class TrackerEngine: ObservableObject {
     public func setChannelInstrument(channel ch: Int, instrumentId: Int?) {
         guard ch >= 0, ch < SongModel.channelCount else { return }
         song.channelInstruments[ch] = instrumentId
+        resetComputerKeyboardChord()
         if let iid = instrumentId,
            let instIdx = song.instruments.firstIndex(where: { $0.id == iid }) {
             _ = audio?.ensureInstrument(song.instruments[instIdx])
@@ -730,6 +742,7 @@ public final class TrackerEngine: ObservableObject {
             current.instruments.append(inst)
             current.channelInstruments[ch] = id
             self.song = current
+            self.resetComputerKeyboardChord()
             self.syncCurrentDefinitionWithChannel(ch)
             NotificationCenter.default.post(name: .retroFocusTracker, object: nil)
             self.previewOn(channel: ch, note: 60, velocity: 100, autoOff: true)

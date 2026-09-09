@@ -36,6 +36,30 @@ switchedInstrumentSong.setCell(orderPos: 0, row: 0, channel: 0, cell: TrackerCel
 switchedInstrumentSong.setCell(orderPos: 0, row: 1, channel: 0, cell: TrackerCell(note: 64, instrument: 2))
 check(PlaybackTimeline(song: switchedInstrumentSong).notes.map(\.voice.instrumentID) == [10, 11],
       "Changing a channel sound preserves the instruments of existing notes")
+
+// The Mac-keyboard route calls stepInput. Switching sounds must append a new
+// snapshot, so the note written before the switch keeps its original voice.
+let computerKeyboardEngine = TrackerEngine()
+computerKeyboardEngine.editMode = true
+let firstSurgeSound = InstrumentDefinition(
+    id: "test-surge-first", displayName: "First Surge", category: .synthBass,
+    sourceType: .surge, sourceIdentifier: "Basses/Attacky.fxp"
+)
+let secondSurgeSound = InstrumentDefinition(
+    id: "test-surge-second", displayName: "Second Surge", category: .synthLead,
+    sourceType: .surge, sourceIdentifier: "Leads/Bass 1.fxp"
+)
+computerKeyboardEngine.assignInstrument(firstSurgeSound, toChannel: 0)
+computerKeyboardEngine.stepInput(note: 60)
+computerKeyboardEngine.assignInstrument(secondSurgeSound, toChannel: 0)
+computerKeyboardEngine.stepInput(note: 64)
+check(computerKeyboardEngine.song.instruments.map(\.name) == ["First Surge", "Second Surge"],
+      "Sound selection appends immutable instrument snapshots")
+check([computerKeyboardEngine.getCell(row: 0, channel: 0).instrument,
+       computerKeyboardEngine.getCell(row: 1, channel: 0).instrument] == [1, 2],
+      "Computer-keyboard notes retain the selected instrument snapshot")
+check(PlaybackTimeline(song: computerKeyboardEngine.song).notes.map(\.voice.instrumentID) == [0, 1],
+      "Computer-keyboard notes play their original sounds after a channel switch")
 check(timeline.beat(order: 1, row: 5) == 3.25, "Playback can start at a nonzero row and order")
 check(timeline.position(at: 1.99, nearest: true)?.order == 1, "Live quantization crosses an order boundary")
 check(timeline.position(at: 3.26)?.row == 5, "Recording uses actual playback position")
