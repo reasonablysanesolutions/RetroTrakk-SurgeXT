@@ -24,8 +24,10 @@
 		B117000000000000000000001 /* JGXProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = F117000000000000000000001 /* JGXProject.swift */; };
 		B118000000000000000000001 /* JGXDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = F118000000000000000000001 /* JGXDocument.swift */; };
 		B119000000000000000000001 /* SurgeBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F119000000000000000000001 /* SurgeBridge.mm */; };
+		B120000000000000000000001 /* SurgeVoiceNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F122000000000000000000001 /* SurgeVoiceNode.swift */; };
+		B121000000000000000000001 /* SurgePresetCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F124000000000000000000001 /* SurgePresetCatalog.swift */; };
 		A102000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A101000000000000000000001 /* Assets.xcassets */; };
-		A104000000000000000000001 /* MuseScore_General_License.md in Resources */ = {isa = PBXBuildFile; fileRef = F116000000000000000000001 /* MuseScore_General_License.md */; };
+		A105000000000000000000001 /* SurgeData in Resources */ = {isa = PBXBuildFile; fileRef = F121000000000000000000001 /* SurgeData */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,8 +49,11 @@
 		F118000000000000000000001 /* JGXDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXDocument.swift; sourceTree = "<group>"; };
 		F119000000000000000000001 /* SurgeBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SurgeBridge.mm; sourceTree = "<group>"; };
 		F120000000000000000000001 /* SurgeBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SurgeBridge.h; sourceTree = "<group>"; };
-		F116000000000000000000001 /* MuseScore_General_License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Licenses/MuseScore_General_License.md; sourceTree = "<group>"; };
+		F122000000000000000000001 /* SurgeVoiceNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeVoiceNode.swift; sourceTree = "<group>"; };
+		F123000000000000000000001 /* RetroTrakk-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "RetroTrakk-Bridging-Header.h"; sourceTree = "<group>"; };
+		F124000000000000000000001 /* SurgePresetCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgePresetCatalog.swift; sourceTree = "<group>"; };
 		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F121000000000000000000001 /* SurgeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeData; path = ../Vendor/surge/resources/data; sourceTree = SOURCE_ROOT; };
 		999999999999999999999999 /* RetroTrakk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RetroTrakk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -99,6 +104,7 @@
 				F113000000000000000000001 /* InstrumentDefinition.swift */,
 				F117000000000000000000001 /* JGXProject.swift */,
 				F118000000000000000000001 /* JGXDocument.swift */,
+				F124000000000000000000001 /* SurgePresetCatalog.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -113,6 +119,8 @@
 				F112000000000000000000001 /* AppleLibrary.swift */,
 				F119000000000000000000001 /* SurgeBridge.mm */,
 				F120000000000000000000001 /* SurgeBridge.h */,
+				F122000000000000000000001 /* SurgeVoiceNode.swift */,
+				F123000000000000000000001 /* RetroTrakk-Bridging-Header.h */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -133,7 +141,7 @@
 		888888888888888888888889 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				F116000000000000000000001 /* MuseScore_General_License.md */,
+				F121000000000000000000001 /* SurgeData */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -198,7 +206,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A102000000000000000000001 /* Assets.xcassets in Resources */,
-				A104000000000000000000001 /* MuseScore_General_License.md in Resources */,
+				A105000000000000000000001 /* SurgeData in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -226,6 +234,8 @@
 				B117000000000000000000001 /* JGXProject.swift in Sources */,
 				B118000000000000000000001 /* JGXDocument.swift in Sources */,
 				B119000000000000000000001 /* SurgeBridge.mm in Sources */,
+				B120000000000000000000001 /* SurgeVoiceNode.swift in Sources */,
+				B121000000000000000000001 /* SurgePresetCatalog.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -348,6 +358,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.retrotrakk.app;
 				PRODUCT_NAME = RetroTrakk;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "RetroTrakk/Engine/RetroTrakk-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -417,6 +428,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.retrotrakk.app;
 				PRODUCT_NAME = RetroTrakk;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "RetroTrakk/Engine/RetroTrakk-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;

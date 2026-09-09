@@ -56,6 +56,7 @@ public enum InstrumentCategory: String, CaseIterable, Identifiable, Codable, Sen
 // MARK: - InstrumentSourceType
 
 public enum InstrumentSourceType: String, Codable, Sendable {
+    case surge
     case coreSoundFont
     case internalSynth
     case audioUnit
@@ -152,7 +153,7 @@ public enum InstrumentCatalog {
         )
     }
 
-    public static let all: [InstrumentDefinition] = [
+    private static let legacyCoreSoundFontDefinitions: [InstrumentDefinition] = [
         // MARK: Piano
         melodic("piano_grand", "Grand Piano", .piano, program: 0,
                 tags: ["acoustic", "grand", "piano", "keyboard", "classical", "concert"],
@@ -573,6 +574,14 @@ public enum InstrumentCatalog {
                 tags: ["explosion", "shot", "military", "action"],
                 desc: "Kraftfullt pistolskott.")
     ]
+
+    /// Surge XT is the built-in library for this fork. The legacy General MIDI
+    /// table remains private only so old project files can still be identified.
+    public static let all: [InstrumentDefinition] = SurgePresetCatalog.all
+
+    public static var availableCategories: [InstrumentCategory] {
+        InstrumentCategory.allCases.filter { category in all.contains { $0.category == category } }
+    }
 
     /// Hämta instrument i en viss kategori.
     public static func inCategory(_ cat: InstrumentCategory) -> [InstrumentDefinition] {

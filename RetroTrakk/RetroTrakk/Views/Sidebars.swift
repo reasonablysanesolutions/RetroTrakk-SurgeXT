@@ -17,7 +17,7 @@ struct InstrumentSidebar: View {
     @EnvironmentObject var audio: RetroTrakkAudioEngine
     @Binding var showPicker: Bool
 
-    @State private var selection: SidebarCategorySelection = .category(.piano)
+    @State private var selection: SidebarCategorySelection = .category(.synthBass)
     @State private var search = ""
 
     var body: some View {
@@ -128,8 +128,7 @@ struct InstrumentSidebar: View {
                 Divider()
                     .padding(.vertical, 4)
 
-                // 18 Musikkategorier
-                ForEach(InstrumentCategory.allCases) { cat in
+                ForEach(InstrumentCatalog.availableCategories) { cat in
                     categoryRow(
                         title: cat.name,
                         icon: cat.icon,

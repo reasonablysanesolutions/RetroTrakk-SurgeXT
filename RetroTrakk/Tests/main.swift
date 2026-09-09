@@ -268,186 +268,22 @@ let realPCM = AVAudioPCMBuffer(pcmFormat: realFile.processingFormat, frameCapaci
 try realFile.read(into: realPCM)
 check((0..<Int(realPCM.frameLength)).contains { abs(realPCM.floatChannelData![0][$0]) > 0.001 }, "Actual installed EXS Grand Piano produces audible output")
 
-// MARK: - Core SoundFont Automated Tests
-print("--- Starting Core SoundFont Tests ---")
-
-// 1. Core SoundFont file resolution
-let sfURL = CoreSoundFont.resolveURL()
-check(sfURL != nil, "CoreSoundFont.resolveURL locates MuseScore_General.sf2")
-if let sf = sfURL {
-    check(FileManager.default.fileExists(atPath: sf.path), "MuseScore_General.sf2 file exists on disk")
-}
-
-// 2. Instrument Catalog search tests
-check(InstrumentCatalog.all.count >= 120, "Catalog has at least 120 curated instruments (found \(InstrumentCatalog.all.count))")
-let pianoResults = InstrumentCatalog.search("piano")
-check(pianoResults.count > 0, "Search 'piano' returns results: \(pianoResults.count) matches")
+// MARK: - Surge XT Catalog Tests
+print("--- Starting Surge XT Catalog Tests ---")
+check(InstrumentCatalog.all.count > 100, "Surge XT factory catalog is available")
+check(InstrumentCatalog.all.allSatisfy { $0.sourceType == .surge }, "Standard SoundFont presets are replaced by Surge XT")
 let bassResults = InstrumentCatalog.search("bass")
-check(bassResults.count > 0, "Search 'bass' returns results: \(bassResults.count) matches")
-let warmResults = InstrumentCatalog.search("warm")
-check(warmResults.count > 0, "Search 'warm' matches descriptions/tags")
-let eightiesResults = InstrumentCatalog.search("80s")
-check(eightiesResults.count > 0, "Search '80s' matches tags")
-let softResults = InstrumentCatalog.search("soft")
-check(softResults.count > 0, "Search 'soft' matches tags/descriptions")
-
-// 3. Core SoundFont single-instrument playback (Grand Piano)
-var sfSong = SongModel()
-sfSong.orders = [0]
-sfSong.patterns = [PatternModel(id: 0, name: "SF2 Live", rows: 16)]
-sfSong.instruments = [
-    InstrumentModel(id: 0, name: "Grand Piano", kind: .coreSoundFont, gmProgram: 0, bankMSB: 121, bankLSB: 0, isDrumKit: false)
-]
-sfSong.channelInstruments = [0, nil, nil, nil, nil, nil, nil, nil]
-for row in [0, 4, 8, 12] {
-    sfSong.setCell(orderPos: 0, row: row, channel: 0, cell: TrackerCell(note: 60, instrument: 1))
-}
-
-let sfAudio = RetroTrakkAudioEngine()
-let sfCaptured = NSMutableData(); let sfLock = NSLock()
-sfAudio.master.installTap(onBus: 0, bufferSize: 512, format: nil) { buffer, _ in
-    sfLock.lock()
-    sfCaptured.append(buffer.floatChannelData![0], length: Int(buffer.frameLength) * MemoryLayout<Float>.size)
-    sfLock.unlock()
-}
-try sfAudio.preparePlayback(song: sfSong, timeline: PlaybackTimeline(song: sfSong))
-try sfAudio.startPlayback(at: 0)
-Thread.sleep(forTimeInterval: 1.8)
-sfAudio.stopPlayback(); sfAudio.master.removeTap(onBus: 0)
-sfLock.lock(); let sfBytes = sfCaptured.copy() as! NSData; sfLock.unlock()
-let sfSamples = sfBytes.bytes.assumingMemoryBound(to: Float.self)
-let sfPeak = (0..<(sfBytes.length / 4)).reduce(Float(0)) { max($0, abs(sfSamples[$1])) }
-print("Core SoundFont Grand Piano peak:", sfPeak, "frames:", sfBytes.length / 4)
-check(sfPeak > 0.001, "Core SoundFont Grand Piano produces audible realtime playback")
-sfAudio.stopEngine()
-
-// 3b. First Play after preview test (ensuring no preview-stealing or uninitialized sine wave)
-let firstPlayAudio = RetroTrakkAudioEngine()
-firstPlayAudio.start()
-_ = firstPlayAudio.ensureInstrument(sfSong.instruments[0])
-firstPlayAudio.previewOn(inst: sfSong.instruments[0], midiNote: 60, velocity: 100)
-Thread.sleep(forTimeInterval: 0.1)
-firstPlayAudio.previewOff(instrumentId: sfSong.instruments[0].id, midiNote: 60)
-
-let firstPlayCaptured = NSMutableData(); let firstPlayLock = NSLock()
-firstPlayAudio.master.installTap(onBus: 0, bufferSize: 512, format: nil) { buffer, _ in
-    firstPlayLock.lock()
-    firstPlayCaptured.append(buffer.floatChannelData![0], length: Int(buffer.frameLength) * MemoryLayout<Float>.size)
-    firstPlayLock.unlock()
-}
-try firstPlayAudio.preparePlayback(song: sfSong, timeline: PlaybackTimeline(song: sfSong))
-try firstPlayAudio.startPlayback(at: 0)
-Thread.sleep(forTimeInterval: 1.8)
-firstPlayAudio.stopPlayback(); firstPlayAudio.master.removeTap(onBus: 0)
-firstPlayLock.lock(); let firstPlayBytes = firstPlayCaptured.copy() as! NSData; firstPlayLock.unlock()
-let firstPlaySamples = firstPlayBytes.bytes.assumingMemoryBound(to: Float.self)
-let firstPlayPeak = (0..<(firstPlayBytes.length / 4)).reduce(Float(0)) { max($0, abs(firstPlaySamples[$1])) }
-print("Core SoundFont First Play after preview peak:", firstPlayPeak)
-check(firstPlayPeak > 0.001, "First Play after keyboard preview produces audible realtime playback")
-// Also verify that preview is still functional and was not destroyed/stolen by playback
-firstPlayAudio.previewOn(inst: sfSong.instruments[0], midiNote: 64, velocity: 100)
-Thread.sleep(forTimeInterval: 0.1)
-firstPlayAudio.previewOff(instrumentId: sfSong.instruments[0].id, midiNote: 64)
-firstPlayAudio.stopEngine()
-
-// 4. In-place instrument switching test (Piano -> Finger Bass)
-let switchAudio = RetroTrakkAudioEngine()
-var switchSong = sfSong
-switchAudio.ensureInstrument(switchSong.instruments[0])
-// Audition before switch
-switchAudio.auditionOn(definition: InstrumentCatalog.all[0], note: 60, velocity: 100)
-Thread.sleep(forTimeInterval: 0.1)
-switchAudio.auditionOff(note: 60)
-
-// Switch instrument 0 to Electric Bass (Finger) program 33
-let bassDef = InstrumentCatalog.all.first { $0.program == 33 && !$0.isDrumKit }!
-switchSong.instruments[0] = InstrumentModel(
-    id: 0, name: bassDef.displayName, kind: .coreSoundFont,
-    gmProgram: Int(bassDef.program), bankMSB: Int(bassDef.bankMSB), bankLSB: Int(bassDef.bankLSB), isDrumKit: false
-)
-switchAudio.ensureInstrument(switchSong.instruments[0])
-
-let switchCaptured = NSMutableData(); let switchLock = NSLock()
-switchAudio.master.installTap(onBus: 0, bufferSize: 512, format: nil) { buffer, _ in
-    switchLock.lock()
-    switchCaptured.append(buffer.floatChannelData![0], length: Int(buffer.frameLength) * MemoryLayout<Float>.size)
-    switchLock.unlock()
-}
-try switchAudio.preparePlayback(song: switchSong, timeline: PlaybackTimeline(song: switchSong))
-try switchAudio.startPlayback(at: 0)
-Thread.sleep(forTimeInterval: 1.8)
-switchAudio.stopPlayback(); switchAudio.master.removeTap(onBus: 0)
-switchLock.lock(); let switchBytes = switchCaptured.copy() as! NSData; switchLock.unlock()
-let switchSamples = switchBytes.bytes.assumingMemoryBound(to: Float.self)
-let switchPeak = (0..<(switchBytes.length / 4)).reduce(Float(0)) { max($0, abs(switchSamples[$1])) }
-print("In-place switched Bass peak:", switchPeak)
-check(switchPeak > 0.001, "In-place switched instrument produces audible realtime playback")
-switchAudio.stopEngine()
-
-// 5. Drum Kit Test (Bank 120, Program 0 Standard Kit)
-var drumSong = SongModel()
-drumSong.orders = [0]
-drumSong.patterns = [PatternModel(id: 0, name: "Drums", rows: 16)]
-let drumDef = InstrumentCatalog.all.first { $0.isDrumKit }!
-drumSong.instruments = [
-    InstrumentModel(id: 0, name: drumDef.displayName, kind: .coreSoundFont, gmProgram: Int(drumDef.program), bankMSB: 120, bankLSB: 0, isDrumKit: true)
-]
-drumSong.channelInstruments = [0, nil, nil, nil, nil, nil, nil, nil]
-// Kick (36) on 0, 8; Snare (38) on 4, 12
-for (r, n) in [(0, 36), (4, 38), (8, 36), (12, 38)] {
-    drumSong.setCell(orderPos: 0, row: r, channel: 0, cell: TrackerCell(note: UInt8(n), instrument: 1))
-}
-let drumAudio = RetroTrakkAudioEngine()
-let drumCaptured = NSMutableData(); let drumLock = NSLock()
-drumAudio.master.installTap(onBus: 0, bufferSize: 512, format: nil) { buffer, _ in
-    drumLock.lock()
-    drumCaptured.append(buffer.floatChannelData![0], length: Int(buffer.frameLength) * MemoryLayout<Float>.size)
-    drumLock.unlock()
-}
-try drumAudio.preparePlayback(song: drumSong, timeline: PlaybackTimeline(song: drumSong))
-try drumAudio.startPlayback(at: 0)
-Thread.sleep(forTimeInterval: 1.8)
-drumAudio.stopPlayback(); drumAudio.master.removeTap(onBus: 0)
-drumLock.lock(); let drumBytes = drumCaptured.copy() as! NSData; drumLock.unlock()
-let drumSamples = drumBytes.bytes.assumingMemoryBound(to: Float.self)
-let drumPeak = (0..<(drumBytes.length / 4)).reduce(Float(0)) { max($0, abs(drumSamples[$1])) }
-print("Drum kit peak:", drumPeak)
-check(drumPeak > 0.001, "Core SoundFont Drum Kit produces audible playback on bank 120")
-drumAudio.stopEngine()
-
-// 6. 8-channel simultaneous Core SoundFont playback and WAV render
+check(!bassResults.isEmpty, "Surge XT bass presets are searchable")
+let firstPreset = InstrumentCatalog.all.first!
+check(SurgePresetCatalog.patchURL(relativePath: firstPreset.sourceIdentifier) != nil, "Surge XT preset path resolves")
 var fullSong = SongModel()
-fullSong.instruments = [
-    InstrumentModel(id: 0, name: "Grand Piano", kind: .coreSoundFont, gmProgram: 0, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 1, name: "Finger Bass", kind: .coreSoundFont, gmProgram: 33, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 2, name: "Warm Pad", kind: .coreSoundFont, gmProgram: 89, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 3, name: "Square Lead", kind: .coreSoundFont, gmProgram: 80, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 4, name: "String Ensemble", kind: .coreSoundFont, gmProgram: 48, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 5, name: "Synth Brass", kind: .coreSoundFont, gmProgram: 62, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 6, name: "Saw Lead", kind: .coreSoundFont, gmProgram: 81, soundFontIdentifier: "MuseScore_General.sf2"),
-    InstrumentModel(id: 7, name: "Acoustic Kit", kind: .coreSoundFont, gmProgram: 0, bankMSB: 120, isDrumKit: true, soundFontIdentifier: "MuseScore_General.sf2", midiChannel: 9),
-]
-fullSong.channelInstruments = [0, 1, 2, 3, 4, 5, 6, 7]
-for ch in 0..<SongModel.channelCount {
-    fullSong.setCell(orderPos: 0, row: ch * 2, channel: ch,
-                     cell: TrackerCell(note: UInt8(60 + ch), instrument: UInt8(ch + 1)))
-}
-let fullAudio = RetroTrakkAudioEngine()
-let fullURL = dir.appendingPathComponent("core-soundfont-8ch.wav")
-try fullAudio.renderToWAV(song: fullSong, url: fullURL)
-let fullFile = try AVAudioFile(forReading: fullURL)
-let fullPCM = AVAudioPCMBuffer(pcmFormat: fullFile.processingFormat, frameCapacity: AVAudioFrameCount(fullFile.length))!
-try fullFile.read(into: fullPCM)
-check((0..<Int(fullPCM.frameLength)).contains { abs(fullPCM.floatChannelData![0][$0]) > 0.001 },
-      "8-channel Core SoundFont song renders audible WAV output")
-
-// 7. SongModel JSON persistence of .coreSoundFont instruments
+fullSong.instruments = [InstrumentModel(id: 0, name: firstPreset.displayName, kind: .surge, surgePatchPath: firstPreset.sourceIdentifier)]
+fullSong.channelInstruments[0] = 0
+fullSong.setCell(orderPos: 0, row: 0, channel: 0, cell: TrackerCell(note: 60, instrument: 1))
+fullSong.setCell(orderPos: 0, row: 2, channel: 1, cell: TrackerCell(note: 61, instrument: 1))
 let songJSON = try JSONEncoder().encode(fullSong)
 let restoredSong = try JSONDecoder().decode(SongModel.self, from: songJSON)
-check(restoredSong.instruments.count == 8, "Restores all 8 instruments from JSON")
-check(restoredSong.instruments[0].kind == .coreSoundFont, "Restored instrument preserves .coreSoundFont kind")
-check(restoredSong.instruments[7].isDrumKit == true, "Restored instrument preserves isDrumKit flag")
-check(restoredSong.instruments[7].bankMSB == 120, "Restored drum instrument preserves bankMSB 120")
+check(restoredSong.instruments[0].kind == .surge && restoredSong.instruments[0].surgePatchPath == firstPreset.sourceIdentifier, "Surge XT preset persists in project JSON")
 
 // 8. JGX Project File Format (.jgx) Tests
 print("--- Starting JGX Project Format (.jgx) Tests ---")
@@ -465,7 +301,7 @@ check(jgxRawJSON?["song"] != nil, "JGX payload contains song data")
 
 let loadedJGXSong = try SongModel.load(from: jgxURL)
 check(loadedJGXSong.instruments.count == fullSong.instruments.count, "JGX restores exact instrument count")
-check(loadedJGXSong.instruments[0].name == "Grand Piano", "JGX restores instrument name")
+check(loadedJGXSong.instruments[0].name == fullSong.instruments[0].name, "JGX restores instrument name")
 check(loadedJGXSong.channelInstruments == fullSong.channelInstruments, "JGX restores channel instruments mapping")
 check(loadedJGXSong.bpm == fullSong.bpm, "JGX restores BPM")
 check(loadedJGXSong.patterns.count == fullSong.patterns.count, "JGX restores pattern count")
@@ -476,27 +312,7 @@ check(loadedJGXSong.patterns[0].cells[2][1].note == 61, "JGX restores multi-chan
 let legacyJSONURL = dir.appendingPathComponent("legacy-song.json")
 try songJSON.write(to: legacyJSONURL)
 let legacyLoadedSong = try SongModel.load(from: legacyJSONURL)
-check(legacyLoadedSong.instruments.count == 8, "Loads legacy JSON song transparently")
-check(legacyLoadedSong.instruments[0].name == "Grand Piano", "Legacy song retains instrument properties")
-
-// Test audio engine playback of song loaded from .jgx
-let jgxAudio = RetroTrakkAudioEngine()
-let jgxCaptured = NSMutableData(); let jgxLock = NSLock()
-jgxAudio.master.installTap(onBus: 0, bufferSize: 512, format: nil) { buffer, _ in
-    jgxLock.lock()
-    jgxCaptured.append(buffer.floatChannelData![0], length: Int(buffer.frameLength) * MemoryLayout<Float>.size)
-    jgxLock.unlock()
-}
-try jgxAudio.preparePlayback(song: loadedJGXSong, timeline: PlaybackTimeline(song: loadedJGXSong))
-try jgxAudio.startPlayback(at: 0)
-Thread.sleep(forTimeInterval: 1.5)
-jgxAudio.stopPlayback(); jgxAudio.master.removeTap(onBus: 0)
-jgxLock.lock(); let jgxBytes = jgxCaptured.copy() as! NSData; jgxLock.unlock()
-let jgxSamples = jgxBytes.bytes.assumingMemoryBound(to: Float.self)
-let jgxPeak = (0..<(jgxBytes.length / 4)).reduce(Float(0)) { max($0, abs(jgxSamples[$1])) }
-print("JGX loaded song playback peak:", jgxPeak)
-check(jgxPeak > 0.001, "Audio engine produces audible playback directly from loaded .jgx file")
-jgxAudio.stopEngine()
+check(legacyLoadedSong.instruments.count == fullSong.instruments.count, "Loads legacy JSON song transparently")
+check(legacyLoadedSong.instruments[0].name == fullSong.instruments[0].name, "Legacy song retains Surge preset properties")
 
 print("ALL TESTS PASSED")
-

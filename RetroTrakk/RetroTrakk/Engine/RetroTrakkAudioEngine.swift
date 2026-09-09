@@ -16,9 +16,11 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     public let previewMixer = AVAudioMixerNode()
     public var channelMixers: [AVAudioMixerNode] = []
     private var previews: [Int: AVAudioUnitMIDIInstrument] = [:]
+    private var surgePreviews: [Int: SurgeVoiceNode] = [:]
     private var previewModels: [Int: InstrumentModel] = [:]
     private var previewHeld: [Int: Set<UInt8>] = [:]
     private var voices: [PlaybackTimeline.Voice: AVAudioUnitMIDIInstrument] = [:]
+    private var surgeVoices: [PlaybackTimeline.Voice: SurgeVoiceNode] = [:]
     private var voiceModels: [PlaybackTimeline.Voice: InstrumentModel] = [:]
     private var sequencer: AVAudioSequencer!
     private var tracks: [PlaybackTimeline.Voice: AVMusicTrack] = [:]
@@ -30,6 +32,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     // MARK: - Audition Preview
     private let auditionSampler = AVAudioUnitSampler()
+    private var surgeAudition: SurgeVoiceNode?
     private var auditionDefinition: InstrumentDefinition?
     private var auditionHeldNotes = Set<UInt8>()
     private var auditionConfigured = false
@@ -124,12 +127,15 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         return a.kind == b.kind && a.gmProgram == b.gmProgram && a.bankMSB == b.bankMSB &&
             a.bankLSB == b.bankLSB && a.isDrumKit == b.isDrumKit && a.midiChannel == b.midiChannel &&
             a.samplePath == b.samplePath && a.soundFontIdentifier == b.soundFontIdentifier &&
+            a.surgePatchPath == b.surgePatchPath &&
             a.auName == b.auName && a.auManufacturer == b.auManufacturer
     }
 
     private func makeInstrument(_ inst: InstrumentModel) throws -> AVAudioUnitMIDIInstrument {
         let node: AVAudioUnitMIDIInstrument
         switch inst.kind {
+        case .surge:
+            throw playbackError("Surge XT använder sin inbyggda ljudnod.")
         case .coreSoundFont:
             let sampler = AVAudioUnitSampler()
             guard let sfURL = CoreSoundFont.resolveURL(identifier: inst.soundFontIdentifier) else {
@@ -183,6 +189,8 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     private func loadInstrument(_ inst: InstrumentModel, into node: AVAudioUnitMIDIInstrument) throws {
         switch inst.kind {
+        case .surge:
+            return
         case .coreSoundFont:
             guard let sampler = node as? AVAudioUnitSampler else { return }
             guard let sfURL = CoreSoundFont.resolveURL(identifier: inst.soundFontIdentifier) else {
@@ -209,6 +217,16 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     @discardableResult
     public func ensureInstrument(_ inst: InstrumentModel) -> AVAudioNode? {
+        if inst.kind == .surge {
+            if let existing = surgePreviews[inst.id], sameSound(previewModels[inst.id], inst) { return existing.node }
+            guard let voice = try? makeSurgeVoice(inst) else { return nil }
+            removeInstrument(id: inst.id)
+            engine.attach(voice.node)
+            engine.connect(voice.node, to: previewMixer, format: nil)
+            surgePreviews[inst.id] = voice; previewModels[inst.id] = inst
+            start()
+            return voice.node
+        }
         if let node = previews[inst.id] {
             if sameSound(previewModels[inst.id], inst) { return node }
             // Snabb omladdning av CoreSoundFont direkt på befintlig sampler
@@ -283,6 +301,9 @@ public final class RetroTrakkAudioEngine: ObservableObject {
             engine.disconnectNodeOutput(node)
             engine.detach(node)
         }
+        if let voice = surgePreviews.removeValue(forKey: id) {
+            voice.stop(); engine.disconnectNodeOutput(voice.node); engine.detach(voice.node)
+        }
         previewModels.removeValue(forKey: id)
         previewHeld.removeValue(forKey: id)
     }
@@ -293,6 +314,12 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     }
 
     public func previewOn(inst: InstrumentModel, midiNote: UInt8, velocity: UInt8) {
+        if inst.kind == .surge {
+            guard let voice = surgePreviews[inst.id] ?? (ensureInstrument(inst).flatMap { _ in surgePreviews[inst.id] }) else { return }
+            voice.noteOn(midiNote, velocity: velocity)
+            previewHeld[inst.id, default: []].insert(midiNote)
+            return
+        }
         guard let node = ensureInstrument(inst) as? AVAudioUnitMIDIInstrument else { return }
         let ch = UInt8(inst.midiChannel & 15)
         if previewHeld[inst.id, default: []].contains(midiNote) {
@@ -303,6 +330,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     }
     public func previewOff(instrumentId: Int, midiNote: UInt8) {
         guard previewHeld[instrumentId]?.remove(midiNote) != nil else { return }
+        if let voice = surgePreviews[instrumentId] { voice.noteOff(midiNote); return }
         let ch = UInt8((previewModels[instrumentId]?.midiChannel ?? 0) & 15)
         previews[instrumentId]?.sendMIDIEvent(0x80 | ch, data1: midiNote, data2: 0)
     }
@@ -315,6 +343,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     }
     public func allNotesOff() {
         for node in previews.values { silence(node) }
+        for voice in surgePreviews.values { voice.stop() }
         for node in voices.values { silence(node) }
         previewHeld.removeAll()
         auditionAllOff()
@@ -330,6 +359,19 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     }
 
     public func auditionOn(definition: InstrumentDefinition, note: UInt8 = 60, velocity: UInt8 = 100) {
+        if definition.sourceType == .surge {
+            if auditionDefinition?.id != definition.id {
+                if let old = surgeAudition { old.stop(); engine.disconnectNodeOutput(old.node); engine.detach(old.node) }
+                guard let patch = SurgePresetCatalog.patchURL(relativePath: definition.sourceIdentifier),
+                      let voice = SurgeVoiceNode(patchURL: patch) else { return }
+                engine.attach(voice.node); engine.connect(voice.node, to: previewMixer, format: nil)
+                surgeAudition = voice; auditionDefinition = definition
+            }
+            if !engine.isRunning { try? startEngineIfNeeded() }
+            surgeAudition?.noteOn(note, velocity: velocity)
+            auditionHeldNotes.insert(note)
+            return
+        }
         ensureAuditionEngine()
         if !engine.isRunning {
             try? startEngineIfNeeded()
@@ -352,6 +394,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     public func auditionOff(note: UInt8 = 60) {
         guard auditionHeldNotes.remove(note) != nil else { return }
+        if auditionDefinition?.sourceType == .surge { surgeAudition?.noteOff(note); return }
         let ch = (auditionDefinition?.defaultMidiChannel ?? 0) & 15
         auditionSampler.sendMIDIEvent(0x80 | ch, data1: note, data2: 0)
     }
@@ -370,6 +413,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     }
 
     public func auditionAllOff() {
+        if auditionDefinition?.sourceType == .surge { surgeAudition?.stop(); auditionHeldNotes.removeAll(); return }
         for n in auditionHeldNotes {
             let ch = (auditionDefinition?.defaultMidiChannel ?? 0) & 15
             auditionSampler.sendMIDIEvent(0x80 | ch, data1: n, data2: 0)
@@ -394,6 +438,22 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     var playbackBeat: Double { sequencer.currentPositionInBeats }
     func setPlaybackTempo(_ bpm: Double) { sequencer.rate = Float(max(20, bpm) / sequenceTempo) }
+
+    private func makeSurgeVoice(_ inst: InstrumentModel) throws -> SurgeVoiceNode {
+        guard let path = inst.surgePatchPath, let patch = SurgePresetCatalog.patchURL(relativePath: path),
+              let voice = SurgeVoiceNode(patchURL: patch) else {
+            throw playbackError("Surge XT-preset saknas för \(inst.name).")
+        }
+        return voice
+    }
+
+    private func removeSurgeVoice(_ key: PlaybackTimeline.Voice) {
+        guard let voice = surgeVoices.removeValue(forKey: key) else { return }
+        voice.stop()
+        engine.disconnectNodeOutput(voice.node)
+        engine.detach(voice.node)
+        voiceModels.removeValue(forKey: key)
+    }
 
     func preparePlayback(song: SongModel, timeline: PlaybackTimeline) throws {
         stopPlayback()
@@ -449,7 +509,36 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     func updatePlayback(song: SongModel, timeline: PlaybackTimeline) throws {
         let required = Set(timeline.notes.map(\.voice))
-        let changedVoices = required.filter { key in
+        let surgeRequired = Set(required.filter { key in
+            song.instruments.first(where: { $0.id == key.instrumentID })?.kind == .surge
+        })
+        let midiRequired = required.subtracting(surgeRequired)
+        for key in Array(surgeVoices.keys) where !surgeRequired.contains(key) { removeSurgeVoice(key) }
+        for key in surgeRequired {
+            guard let inst = song.instruments.first(where: { $0.id == key.instrumentID }) else {
+                throw playbackError("Instrument \(key.instrumentID) saknas för kanal \(key.channel + 1).")
+            }
+            if surgeVoices[key] == nil || !sameSound(voiceModels[key], inst) {
+                removeSurgeVoice(key)
+                let voice = try makeSurgeVoice(inst)
+                engine.attach(voice.node)
+                engine.connect(voice.node, to: channelMixers[key.channel], format: nil)
+                surgeVoices[key] = voice
+                voiceModels[key] = inst
+            }
+            guard let voice = surgeVoices[key] else { continue }
+            voice.gain = Float(inst.volume)
+            voice.schedule(notes: timeline.notes.filter { $0.voice == key }, from: sequencer.currentPositionInBeats, bpm: song.bpm)
+            if sequencer.isPlaying { voice.activate() }
+        }
+        for key in Array(voices.keys) where !midiRequired.contains(key) {
+            tracks[key]?.destinationAudioUnit = nil
+            if let node = voices.removeValue(forKey: key) {
+                silence(node); engine.disconnectNodeOutput(node); engine.detach(node)
+            }
+            voiceModels.removeValue(forKey: key)
+        }
+        let changedVoices = midiRequired.filter { key in
             guard let inst = song.instruments.first(where: { $0.id == key.instrumentID }) else { return false }
             return voices[key] == nil || !sameSound(voiceModels[key], inst)
         }
@@ -493,7 +582,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
             voiceModels[key] = inst
             track?.destinationAudioUnit = node
         }
-        for key in required where tracks[key] == nil {
+        for key in midiRequired where tracks[key] == nil {
             guard let node = voices[key] else {
                 throw playbackError("Ingen ljudnod finns för kanal \(key.channel + 1).")
             }
@@ -510,7 +599,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
                 }
                 track.lengthInBeats = timeline.length
             }
-            for note in timeline.notes {
+            for note in timeline.notes where midiRequired.contains(note.voice) {
                 guard let track = tracks[note.voice] else {
                     throw playbackError("Sekvensspår saknas för kanal \(note.voice.channel + 1).")
                 }
@@ -529,16 +618,27 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     func startPlayback(at beat: Double) throws {
         try startEngineIfNeeded()
+        for voice in surgeVoices.values {
+            voice.schedule(notes: [], from: beat, bpm: sequenceTempo)
+        }
+        // Reinstall events after resetting their audio-frame origin. The source
+        // nodes render them inside Core Audio, while AVAudioSequencer remains
+        // the transport clock observed by the UI.
+        for (key, voice) in surgeVoices {
+            voice.schedule(notes: sequenceNotes.filter { $0.voice == key }, from: beat, bpm: sequenceTempo)
+            voice.activate()
+        }
         sequencer.currentPositionInBeats = beat
         try sequencer.start()
         guard sequencer.isPlaying else {
             throw playbackError("Sequencern startade inte.", code: 5)
         }
-        statusText = "Spelar \(sequenceNotes.count) noter via \(tracks.count) ljudspår"
+        statusText = "Spelar \(sequenceNotes.count) noter via \(tracks.count + surgeVoices.count) ljudspår"
     }
     func stopPlayback() {
         sequencer.stop()
         for node in voices.values { silence(node) }
+        for voice in surgeVoices.values { voice.stop() }
     }
 
     /// Uses the same grid events as live playback; each render block ends at the
@@ -731,4 +831,3 @@ public enum CoreSoundFont {
         return nil
     }
 }
-

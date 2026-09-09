@@ -655,7 +655,8 @@ public final class TrackerEngine: ObservableObject {
             return
         }
         if let match = InstrumentCatalog.all.first(where: {
-            $0.isDrumKit == inst.isDrumKit && $0.program == UInt8(inst.gmProgram) && $0.bankMSB == UInt8(inst.bankMSB)
+            if inst.kind == .surge { return $0.sourceType == .surge && $0.sourceIdentifier == inst.surgePatchPath }
+            return $0.isDrumKit == inst.isDrumKit && $0.program == UInt8(inst.gmProgram) && $0.bankMSB == UInt8(inst.bankMSB)
         }) {
             currentDefinition = match
         } else {
@@ -688,12 +689,13 @@ public final class TrackerEngine: ObservableObject {
         let inst = InstrumentModel(
             id: id,
             name: def.displayName,
-            kind: .coreSoundFont,
+            kind: def.sourceType == .surge ? .surge : .coreSoundFont,
             gmProgram: Int(def.program),
             bankMSB: Int(def.bankMSB),
             bankLSB: Int(def.bankLSB),
             isDrumKit: def.isDrumKit,
             soundFontIdentifier: def.sourceIdentifier,
+            surgePatchPath: def.sourceType == .surge ? def.sourceIdentifier : nil,
             midiChannel: Int(def.defaultMidiChannel)
         )
         var current = song
@@ -710,9 +712,13 @@ public final class TrackerEngine: ObservableObject {
 
         updateChannelCells(channel: ch, toInstrumentIndex: instIndex)
 
-        _ = audio?.ensureInstrument(inst)
-        let triggerNote: UInt8 = def.isDrumKit ? 36 : 60
-        previewOn(channel: ch, note: triggerNote, velocity: 100, autoOff: true)
+        // Surge patches are staged when transport/preview explicitly asks for
+        // audio. Selecting from the large factory list must stay instant.
+        if inst.kind != .surge {
+            _ = audio?.ensureInstrument(inst)
+            let triggerNote: UInt8 = def.isDrumKit ? 36 : 60
+            previewOn(channel: ch, note: triggerNote, velocity: 100, autoOff: true)
+        }
     }
 
     public func setChannelInstrument(channel ch: Int, instrumentId: Int?) {

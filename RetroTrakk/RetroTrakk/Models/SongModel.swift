@@ -94,6 +94,7 @@ public struct PatternModel: Codable, Hashable, Identifiable, Sendable {
 // MARK: - InstrumentModel
 
 public enum InstrumentKind: String, Codable, Sendable {
+    case surge         // Inbyggda Surge XT-presets (.fxp)
     case coreSoundFont // Inbyggt Core SoundFont-bibliotek (MuseScore General via AUSampler)
     case dls           // Apple DLSMusicDevice (GM)
     case auSampler     // Apple AUSampler (EXS / aupreset)
@@ -114,6 +115,8 @@ public struct InstrumentModel: Codable, Hashable, Identifiable, Sendable {
     public var isDrumKit: Bool
     /// Resursidentifierare för SoundFont (t.ex. "MuseScore_General.sf2")
     public var soundFontIdentifier: String?
+    /// Relativ sökväg under Surge XT:s patches_factory-katalog.
+    public var surgePatchPath: String?
     /// För audioUnit: komponentnamn + manufacturer för återupplösning
     public var auName: String?
     public var auManufacturer: String?
@@ -126,19 +129,20 @@ public struct InstrumentModel: Codable, Hashable, Identifiable, Sendable {
 
     public init(id: Int, name: String, kind: InstrumentKind = .coreSoundFont, gmProgram: Int = 0,
                 bankMSB: Int = 121, bankLSB: Int = 0, isDrumKit: Bool = false,
-                soundFontIdentifier: String? = nil,
+                soundFontIdentifier: String? = nil, surgePatchPath: String? = nil,
                 auName: String? = nil, auManufacturer: String? = nil, samplePath: String? = nil,
                 volume: Double = 0.8, pan: Double = 0, midiChannel: Int = 0) {
         self.id = id; self.name = name; self.kind = kind; self.gmProgram = gmProgram
         self.bankMSB = bankMSB; self.bankLSB = bankLSB; self.isDrumKit = isDrumKit
         self.soundFontIdentifier = soundFontIdentifier
+        self.surgePatchPath = surgePatchPath
         self.auName = auName; self.auManufacturer = auManufacturer; self.samplePath = samplePath
         self.volume = volume; self.pan = pan; self.midiChannel = midiChannel
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, kind, gmProgram, bankMSB, bankLSB, isDrumKit, soundFontIdentifier,
-             auName, auManufacturer, samplePath, volume, pan, midiChannel
+             surgePatchPath, auName, auManufacturer, samplePath, volume, pan, midiChannel
     }
 
     public init(from decoder: Decoder) throws {
@@ -154,6 +158,7 @@ public struct InstrumentModel: Codable, Hashable, Identifiable, Sendable {
         bankMSB = try c.decodeIfPresent(Int.self, forKey: .bankMSB) ?? (drum ? 120 : 121)
         bankLSB = try c.decodeIfPresent(Int.self, forKey: .bankLSB) ?? 0
         soundFontIdentifier = try c.decodeIfPresent(String.self, forKey: .soundFontIdentifier)
+        surgePatchPath = try c.decodeIfPresent(String.self, forKey: .surgePatchPath)
         auName = try c.decodeIfPresent(String.self, forKey: .auName)
         auManufacturer = try c.decodeIfPresent(String.self, forKey: .auManufacturer)
         samplePath = try c.decodeIfPresent(String.self, forKey: .samplePath)
