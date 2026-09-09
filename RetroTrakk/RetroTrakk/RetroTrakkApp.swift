@@ -8,6 +8,10 @@ struct RetroTrakkApp: App {
     @StateObject private var midi = MIDIEngine()
     @StateObject private var tracker = TrackerEngine()
 
+    init() {
+        CrashDiagnostics.install()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -42,6 +46,9 @@ struct RetroTrakkApp: App {
                 }
                 Button("Open Source Licenses…") {
                     NotificationCenter.default.post(name: .retroLicenses, object: nil)
+                }
+                Button("Öppna diagnostikmapp") {
+                    CrashDiagnostics.openLogDirectory()
                 }
             }
             CommandGroup(replacing: .newItem) {

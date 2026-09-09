@@ -26,6 +26,7 @@
 		B119000000000000000000001 /* SurgeBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F119000000000000000000001 /* SurgeBridge.mm */; };
 		B120000000000000000000001 /* SurgeVoiceNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F122000000000000000000001 /* SurgeVoiceNode.swift */; };
 		B121000000000000000000001 /* SurgePresetCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F124000000000000000000001 /* SurgePresetCatalog.swift */; };
+		B122000000000000000000001 /* CrashDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = F126000000000000000000001 /* CrashDiagnostics.swift */; };
 		A102000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A101000000000000000000001 /* Assets.xcassets */; };
 		A105000000000000000000001 /* SurgeData in Resources */ = {isa = PBXBuildFile; fileRef = F121000000000000000000001 /* SurgeData */; };
 		A106000000000000000000001 /* SurgeRuntimeData in Resources */ = {isa = PBXBuildFile; fileRef = F125000000000000000000001 /* SurgeRuntimeData */; };
@@ -53,6 +54,7 @@
 		F122000000000000000000001 /* SurgeVoiceNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgeVoiceNode.swift; sourceTree = "<group>"; };
 		F123000000000000000000001 /* RetroTrakk-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "RetroTrakk-Bridging-Header.h"; sourceTree = "<group>"; };
 		F124000000000000000000001 /* SurgePresetCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgePresetCatalog.swift; sourceTree = "<group>"; };
+		F126000000000000000000001 /* CrashDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashDiagnostics.swift; sourceTree = "<group>"; };
 		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F121000000000000000000001 /* SurgeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeData; path = Resources/SurgeData; sourceTree = SOURCE_ROOT; };
 		F125000000000000000000001 /* SurgeRuntimeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeRuntimeData; path = Resources/SurgeRuntimeData; sourceTree = SOURCE_ROOT; };
@@ -90,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				F101000000000000000000001 /* RetroTrakkApp.swift */,
+				F126000000000000000000001 /* CrashDiagnostics.swift */,
 				A101000000000000000000001 /* Assets.xcassets */,
 				555555555555555555555555 /* Models */,
 				666666666666666666666666 /* Engine */,
@@ -240,6 +243,7 @@
 				B119000000000000000000001 /* SurgeBridge.mm in Sources */,
 				B120000000000000000000001 /* SurgeVoiceNode.swift in Sources */,
 				B121000000000000000000001 /* SurgePresetCatalog.swift in Sources */,
+				B122000000000000000000001 /* CrashDiagnostics.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

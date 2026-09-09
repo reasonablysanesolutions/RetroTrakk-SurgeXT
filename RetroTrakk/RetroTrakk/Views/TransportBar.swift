@@ -85,12 +85,12 @@ struct TransportBar: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Oktav").font(.caption2).foregroundStyle(.secondary)
-                    HStack(spacing: 2) {
-                        Button("−") { tracker.octave = max(0, tracker.octave - 1) }
-                        Text("\(tracker.octave)").font(.body).monospacedDigit().frame(width: 20)
-                        Button("+") { tracker.octave = min(8, tracker.octave + 1) }
+                    Stepper(value: $tracker.octave, in: 0...8) {
+                        Text("\(tracker.octave)").font(.body).monospacedDigit()
                     }
-                    .buttonStyle(.plain)
+                    .labelsHidden()
+                    .frame(width: 62)
+                    .help("Väljer oktav för Mac-tangentbordet (Z = C i vald oktav)")
                 }
                 VStack(alignment: .center, spacing: 2) {
                     Text("Beat").font(.caption2).foregroundStyle(.secondary)

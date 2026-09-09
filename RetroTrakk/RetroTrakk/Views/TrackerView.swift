@@ -113,18 +113,6 @@ struct TrackerView: View {
         return available / CGFloat(SongModel.channelCount)
     }
 
-    // Piano-layout: undre raden = aktuell oktav, övre = oktav+1
-    private func noteForKey(_ key: String, octave: Int) -> UInt8? {
-        let base = 12 * (octave + 1)
-        let lower: [String: Int] = ["z": 0, "s": 1, "x": 2, "d": 3, "c": 4, "v": 5, "g": 6, "h": 7,
-                                    "b": 8, "n": 9, "j": 10, "m": 11, ",": 12]
-        let upper: [String: Int] = ["q": 12, "2": 13, "w": 14, "3": 15, "e": 16, "r": 17, "5": 18,
-                                    "t": 19, "6": 20, "y": 21, "7": 22, "u": 23, "i": 24]
-        if let s = lower[key] { return UInt8(max(0, min(127, base + s))) }
-        if let s = upper[key] { return UInt8(max(0, min(127, base + s))) }
-        return nil
-    }
-
     private var activeRow: Int {
         tracker.isPlaying ? tracker.currentRow : tracker.cursorRow
     }
@@ -385,7 +373,7 @@ struct TrackerView: View {
             tracker.togglePlay()
             return .handled
         }
-        if let note = noteForKey(chars, octave: tracker.octave) {
+        if let note = ComputerKeyboardPiano.midiNote(for: chars, octave: tracker.octave) {
             tracker.stepInput(note: note)
             return .handled
         }
@@ -403,7 +391,7 @@ struct TrackerView: View {
             guard !isEditingText(),
                   event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
                   let characters = event.charactersIgnoringModifiers?.lowercased(),
-                  let note = noteForKey(characters, octave: tracker.octave) else {
+                  let note = ComputerKeyboardPiano.midiNote(for: characters, octave: tracker.octave) else {
                 return event
             }
             tracker.stepInput(note: note)

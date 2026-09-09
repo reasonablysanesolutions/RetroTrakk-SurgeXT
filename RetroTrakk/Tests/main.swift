@@ -60,6 +60,9 @@ check([computerKeyboardEngine.getCell(row: 0, channel: 0).instrument,
       "Computer-keyboard notes retain the selected instrument snapshot")
 check(PlaybackTimeline(song: computerKeyboardEngine.song).notes.map(\.voice.instrumentID) == [0, 1],
       "Computer-keyboard notes play their original sounds after a channel switch")
+check(ComputerKeyboardPiano.midiNote(for: "z", octave: 3) == 48 &&
+      ComputerKeyboardPiano.midiNote(for: "z", octave: 5) == 72,
+      "Octave selector changes the Mac keyboard's MIDI note")
 check(timeline.beat(order: 1, row: 5) == 3.25, "Playback can start at a nonzero row and order")
 check(timeline.position(at: 1.99, nearest: true)?.order == 1, "Live quantization crosses an order boundary")
 check(timeline.position(at: 3.26)?.row == 5, "Recording uses actual playback position")

@@ -9,6 +9,20 @@ extension Notification.Name {
     static let retroFocusTracker = Notification.Name("retroFocusTracker")
 }
 
+public enum ComputerKeyboardPiano {
+    public static func midiNote(for key: String, octave: Int) -> UInt8? {
+        let base = 12 * (max(0, min(8, octave)) + 1)
+        let lower: [String: Int] = ["z": 0, "s": 1, "x": 2, "d": 3, "c": 4, "v": 5, "g": 6, "h": 7,
+                                    "b": 8, "n": 9, "j": 10, "m": 11, ",": 12]
+        let upper: [String: Int] = ["q": 12, "2": 13, "w": 14, "3": 15, "e": 16, "r": 17, "5": 18,
+                                    "t": 19, "6": 20, "y": 21, "7": 22, "u": 23, "i": 24]
+        if let semitones = lower[key] ?? upper[key] {
+            return UInt8(max(0, min(127, base + semitones)))
+        }
+        return nil
+    }
+}
+
 /// En punkt i tracker-griden (rad, kanal). Används för musmarkering.
 public struct SelPoint: Hashable, Sendable {
     public var row: Int

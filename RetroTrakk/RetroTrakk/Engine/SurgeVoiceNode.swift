@@ -12,6 +12,12 @@ final class SurgeVoiceNode {
         let isOn: Bool
     }
 
+    private enum Command {
+        case noteOn(UInt8, UInt8)
+        case noteOff(UInt8)
+        case allNotesOff
+    }
+
     private(set) var node: AVAudioSourceNode!
     private let sampleRate: Double
     private let scratch: UnsafeMutablePointer<Float>
@@ -21,6 +27,10 @@ final class SurgeVoiceNode {
     private var eventIndex = 0
     private var originSampleTime: Int64?
     private var active = false
+    /// Surge's synth instance is not thread-safe. UI/MIDI calls enqueue a
+    /// command here; only the Core Audio render callback touches the DSP.
+    private let commandLock = NSLock()
+    private var pendingCommands: [Command] = []
     var gain: Float = 0.8
 
     init?(patchURL: URL, sampleRate: Double = 44_100) {
@@ -55,24 +65,60 @@ final class SurgeVoiceNode {
             if onFrame >= 0 { scheduled.append(Event(frame: onFrame, key: note.key, velocity: note.velocity, isOn: true)) }
             if offFrame >= 0 { scheduled.append(Event(frame: offFrame, key: note.key, velocity: 0, isOn: false)) }
         }
+        commandLock.lock()
         events = scheduled.sorted { $0.frame == $1.frame ? (!$0.isOn && $1.isOn) : $0.frame < $1.frame }
         eventIndex = 0
         originSampleTime = nil
         active = false
-        if let surge { rtk_surge_all_notes_off(surge) }
+        pendingCommands.append(.allNotesOff)
+        commandLock.unlock()
     }
 
-    func activate() { active = true }
-    func stop() { active = false; if let surge { rtk_surge_all_notes_off(surge) } }
-    func noteOn(_ note: UInt8, velocity: UInt8) { if let surge { rtk_surge_note_on(surge, note, velocity) }; active = true }
-    func noteOff(_ note: UInt8) { if let surge { rtk_surge_note_off(surge, note) } }
+    func activate() {
+        commandLock.lock(); active = true; commandLock.unlock()
+    }
+    func stop() {
+        commandLock.lock()
+        active = false
+        pendingCommands.append(.allNotesOff)
+        commandLock.unlock()
+    }
+    func noteOn(_ note: UInt8, velocity: UInt8) {
+        commandLock.lock()
+        active = true
+        pendingCommands.append(.noteOn(note, velocity))
+        commandLock.unlock()
+    }
+    func noteOff(_ note: UInt8) { enqueue(.noteOff(note)) }
+
+    private func enqueue(_ command: Command) {
+        commandLock.lock()
+        pendingCommands.append(command)
+        commandLock.unlock()
+    }
+
+    private func consumeRenderState() -> (active: Bool, commands: [Command]) {
+        commandLock.lock()
+        defer { commandLock.unlock() }
+        let commands = pendingCommands
+        pendingCommands.removeAll(keepingCapacity: true)
+        return (active, commands)
+    }
 
     private func render(timestamp: UnsafePointer<AudioTimeStamp>, frameCount: Int, buffers: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
         let bufferList = UnsafeMutableAudioBufferListPointer(buffers)
         func silence() {
             for buffer in bufferList where buffer.mDataByteSize > 0 { memset(buffer.mData, 0, Int(buffer.mDataByteSize)) }
         }
-        guard active, let surge else { silence(); return noErr }
+        let state = consumeRenderState()
+        guard state.active, let surge else { silence(); return noErr }
+        for command in state.commands {
+            switch command {
+            case let .noteOn(note, velocity): rtk_surge_note_on(surge, note, velocity)
+            case let .noteOff(note): rtk_surge_note_off(surge, note)
+            case .allNotesOff: rtk_surge_all_notes_off(surge)
+            }
+        }
         let start = Int64(timestamp.pointee.mSampleTime)
         if originSampleTime == nil { originSampleTime = start }
         let relativeStart = start - (originSampleTime ?? start)
