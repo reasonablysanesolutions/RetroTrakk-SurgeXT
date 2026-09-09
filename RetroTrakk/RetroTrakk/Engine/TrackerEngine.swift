@@ -369,6 +369,9 @@ public final class TrackerEngine: ObservableObject {
         guard channel >= 0, channel < SongModel.channelCount,
               song.channelEnabled[channel],
               let inst = instrumentFor(channel: channel) else { return }
+        // A factory patch is loaded by the transport staging graph. Do not
+        // attach a new SourceNode from keyboard/edit input on the UI thread.
+        guard inst.kind != .surge else { return }
         audio?.previewOn(inst: inst, midiNote: note, velocity: velocity)
         if autoOff {
             let iid = inst.id
