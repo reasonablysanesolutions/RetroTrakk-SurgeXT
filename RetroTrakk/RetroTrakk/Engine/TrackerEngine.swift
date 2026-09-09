@@ -35,7 +35,11 @@ public final class TrackerEngine: ObservableObject {
     @Published public var orderPos: Int = 0
     @Published public var currentRow: Int = 0
     @Published public var isPlaying: Bool = false
-    @Published public var isRecording: Bool = false
+    @Published public var isRecording: Bool = false {
+        didSet {
+            if oldValue && !isRecording { refreshDeferredRecordingPlayback() }
+        }
+    }
     @Published public var editMode: Bool = false
     @Published public var cursorRow: Int = 0
     @Published public var cursorChannel: Int = 0 {
@@ -79,6 +83,11 @@ public final class TrackerEngine: ObservableObject {
     private var playheadTimer: Timer?
     private var playbackTimeline: PlaybackTimeline?
     private var activeNotes: [UInt8: Int] = [:]
+    /// Live notes are previewed immediately. Rewriting AVMusicTracks for every
+    /// key press can stall the main thread, so one rebuild is deferred until
+    /// Record is switched off (or until the next Play after Stop).
+    private var recordingPlaybackNeedsRefresh = false
+    private var deferredRecordingEventCount = 0
 
     public init() {
         syncCurrentDefinitionWithChannel(0)
@@ -155,6 +164,8 @@ public final class TrackerEngine: ObservableObject {
         textureActive = false
         midiHeld.removeAll()
         activeNotes.removeAll()
+        recordingPlaybackNeedsRefresh = false
+        deferredRecordingEventCount = 0
         audio?.allNotesOff()
         // När uppspelningen stoppas ligger samma rad kvar som edit cursor row
         currentRow = cursorRow
@@ -186,16 +197,45 @@ public final class TrackerEngine: ObservableObject {
     }
 
     private func songChanged(from old: SongModel) {
-        audio?.applyChannelState(song: song)
+        let needsChannelUpdate = old.channelVolume != song.channelVolume || old.channelPan != song.channelPan ||
+              old.channelMute != song.channelMute || old.channelSolo != song.channelSolo ||
+              old.channelEnabled != song.channelEnabled
+        if needsChannelUpdate { audio?.applyChannelState(song: song) }
         guard isPlaying, let audio else { return }
         if old.bpm != song.bpm { audio.setPlaybackTempo(song.bpm) }
-        guard old.patterns != song.patterns || old.orders != song.orders ||
+        let needsPlaybackUpdate = old.patterns != song.patterns || old.orders != song.orders ||
               old.stepsPerBeat != song.stepsPerBeat || old.instruments != song.instruments ||
-              old.channelInstruments != song.channelInstruments else { return }
+              old.channelInstruments != song.channelInstruments
+        guard needsPlaybackUpdate else { return }
+        if isRecording {
+            recordingPlaybackNeedsRefresh = true
+            deferredRecordingEventCount += 1
+            if deferredRecordingEventCount == 1 {
+                CrashDiagnostics.shared.record("Live recording: deferred playback rebuild to prevent audio/UI stalls.")
+            }
+            return
+        }
+        rebuildPlayback(audio: audio)
+    }
+
+    private func refreshDeferredRecordingPlayback() {
+        guard recordingPlaybackNeedsRefresh else { return }
+        recordingPlaybackNeedsRefresh = false
+        deferredRecordingEventCount = 0
+        guard isPlaying, let audio else { return }
+        rebuildPlayback(audio: audio)
+    }
+
+    private func rebuildPlayback(audio: RetroTrakkAudioEngine) {
         let timeline = PlaybackTimeline(song: song)
+        let started = ProcessInfo.processInfo.systemUptime
         do {
             try audio.updatePlayback(song: song, timeline: timeline)
             playbackTimeline = timeline
+            let elapsed = ProcessInfo.processInfo.systemUptime - started
+            if elapsed > 0.05 {
+                CrashDiagnostics.shared.record(String(format: "Slow playback rebuild: %.0f ms, %d notes, %d releases.", elapsed * 1_000, timeline.notes.count, timeline.fades.count))
+            }
         } catch {
             audio.statusText = "Kunde inte uppdatera uppspelning: \(error.localizedDescription)"
             stop()
@@ -414,6 +454,23 @@ public final class TrackerEngine: ObservableObject {
     public func insertNoteOff() {
         setCell(row: cursorRow, channel: cursorChannel, cell: .noteOff)
         moveCursor(rows: stepSize)
+    }
+
+    /// TAB while recording adds F08 at the quantized playhead and releases the
+    /// currently held preview notes. F08 is replayed later as a channel release,
+    /// allowing the selected instrument's own envelope to fade naturally.
+    public func insertLiveFadeOut() {
+        guard isRecording, isPlaying, let audio, let timeline = playbackTimeline,
+              let position = timeline.position(at: audio.playbackBeat, nearest: quantize) else { return }
+        var cell = song.getCell(orderPos: position.order, row: position.row, channel: cursorChannel)
+        cell.effect = TrackerEffect.fadeOut
+        cell.param = TrackerEffect.defaultFadeParameter
+        song.setCell(orderPos: position.order, row: position.row, channel: cursorChannel, cell: cell)
+        for (note, instrumentID) in activeNotes {
+            audio.previewOff(instrumentId: instrumentID, midiNote: note)
+        }
+        activeNotes.removeAll()
+        CrashDiagnostics.shared.record("Live recording: inserted F08 release at order \(position.order), row \(position.row), channel \(cursorChannel + 1).")
     }
 
     public func moveCursor(rows: Int = 0, channels: Int = 0) {

@@ -28,6 +28,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     // voices. Keep an event-free track as the native transport's anchor.
     private var transportTrack: AVMusicTrack?
     private var sequenceNotes: [PlaybackTimeline.Note] = []
+    private var sequenceFades: [PlaybackTimeline.Fade] = []
     private var sequenceSteps = 4.0
     private var sequenceLength = 0.0
     private var sequenceTempo = 120.0
@@ -471,11 +472,11 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         }
 
         for track in sequencer.tracks.reversed() { sequencer.removeTrack(track) }
-        tracks.removeAll(); transportTrack = nil; sequenceNotes = []
+        tracks.removeAll(); transportTrack = nil; sequenceNotes = []; sequenceFades = []
         if hasTempo {
             sequencer.tempoTrack.clearEvents(in: AVBeatRange(start: 0, length: AVMusicTimeStampEndOfTrack))
         }
-        let required = Set(timeline.notes.map(\.voice))
+        let required = Set(timeline.notes.map(\.voice) + timeline.fades.map(\.voice))
         for key in Array(voices.keys) where !required.contains(key) {
             tracks[key]?.destinationAudioUnit = nil
             if let node = voices.removeValue(forKey: key) {
@@ -536,7 +537,9 @@ public final class RetroTrakkAudioEngine: ObservableObject {
             }
             guard let voice = surgeVoices[key] else { continue }
             voice.gain = Float(inst.volume)
-            voice.schedule(notes: timeline.notes.filter { $0.voice == key }, from: sequencer.currentPositionInBeats, bpm: song.bpm)
+            voice.schedule(notes: timeline.notes.filter { $0.voice == key },
+                           fades: timeline.fades.filter { $0.voice == key },
+                           from: sequencer.currentPositionInBeats, bpm: song.bpm)
             if sequencer.isPlaying { voice.activate() }
         }
         for key in Array(voices.keys) where !midiRequired.contains(key) {
@@ -598,8 +601,8 @@ public final class RetroTrakkAudioEngine: ObservableObject {
             track.destinationAudioUnit = node
             tracks[key] = track
         }
-        if sequenceNotes != timeline.notes || sequenceLength != timeline.length {
-            let populated = Set(sequenceNotes.map(\.voice))
+        if sequenceNotes != timeline.notes || sequenceFades != timeline.fades || sequenceLength != timeline.length {
+            let populated = Set(sequenceNotes.map(\.voice) + sequenceFades.map(\.voice))
             for (key, track) in tracks {
                 // Core Audio returns paramErr when clearing a never-populated track.
                 if populated.contains(key) {
@@ -614,7 +617,13 @@ public final class RetroTrakkAudioEngine: ObservableObject {
                 track.addEvent(AVMIDINoteEvent(channel: UInt32(note.midiChannel), key: UInt32(note.key),
                                               velocity: UInt32(note.velocity), duration: note.duration), at: note.beat)
             }
+            for fade in timeline.fades where midiRequired.contains(fade.voice) {
+                guard let track = tracks[fade.voice] else { continue }
+                track.addEvent(AVMIDIControlChangeEvent(channel: UInt32(fade.midiChannel),
+                                                        messageType: .allNotesOff, value: 0), at: fade.beat)
+            }
             sequenceNotes = timeline.notes
+            sequenceFades = timeline.fades
         }
         if wasPlaying && sequenceSteps != timeline.stepsPerBeat {
             sequencer.currentPositionInBeats = beat * sequenceSteps / timeline.stepsPerBeat
@@ -627,13 +636,14 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     func startPlayback(at beat: Double) throws {
         try startEngineIfNeeded()
         for voice in surgeVoices.values {
-            voice.schedule(notes: [], from: beat, bpm: sequenceTempo)
+            voice.schedule(notes: [], fades: [], from: beat, bpm: sequenceTempo)
         }
         // Reinstall events after resetting their audio-frame origin. The source
         // nodes render them inside Core Audio, while AVAudioSequencer remains
         // the transport clock observed by the UI.
         for (key, voice) in surgeVoices {
-            voice.schedule(notes: sequenceNotes.filter { $0.voice == key }, from: beat, bpm: sequenceTempo)
+            voice.schedule(notes: sequenceNotes.filter { $0.voice == key },
+                           fades: sequenceFades.filter { $0.voice == key }, from: beat, bpm: sequenceTempo)
             voice.activate()
         }
         sequencer.currentPositionInBeats = beat
@@ -678,22 +688,43 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         let file = try AVAudioFile(forWriting: url, settings: [AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: rate, AVNumberOfChannelsKey: 2, AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false])
-        struct Event { let frame: Int64; let note: PlaybackTimeline.Note; let on: Bool }
+        struct Event {
+            enum Kind { case note(PlaybackTimeline.Note, Bool), fade(PlaybackTimeline.Fade) }
+            let frame: Int64
+            let kind: Kind
+        }
         func frame(_ beat: Double) -> Int64 { Int64((beat * 60 / max(20, song.bpm) * rate).rounded()) }
         var events: [Event] = []
         for note in timeline.notes {
-            events.append(Event(frame: frame(note.beat), note: note, on: true))
-            events.append(Event(frame: frame(note.beat + note.duration), note: note, on: false))
+            events.append(Event(frame: frame(note.beat), kind: .note(note, true)))
+            events.append(Event(frame: frame(note.beat + note.duration), kind: .note(note, false)))
         }
-        events.sort { $0.frame == $1.frame ? (!$0.on && $1.on) : $0.frame < $1.frame }
+        for fade in timeline.fades {
+            events.append(Event(frame: frame(fade.beat), kind: .fade(fade)))
+        }
+        events.sort {
+            if $0.frame != $1.frame { return $0.frame < $1.frame }
+            func rank(_ kind: Event.Kind) -> Int {
+                switch kind {
+                case .fade: return 0
+                case let .note(_, on): return on ? 2 : 1
+                }
+            }
+            return rank($0.kind) < rank($1.kind)
+        }
         let end = frame(timeline.length) + Int64(rate) // release tail
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 4096)!
         var current: Int64 = 0; var index = 0; var retries = 0
         while current < end {
             while index < events.count && events[index].frame <= current {
-                let event = events[index]; let note = event.note
-                nodes[note.voice]?.sendMIDIEvent((event.on ? 0x90 : 0x80) | note.midiChannel,
-                                               data1: note.key, data2: event.on ? note.velocity : 0)
+                let event = events[index]
+                switch event.kind {
+                case let .note(note, on):
+                    nodes[note.voice]?.sendMIDIEvent((on ? 0x90 : 0x80) | note.midiChannel,
+                                                      data1: note.key, data2: on ? note.velocity : 0)
+                case let .fade(fade):
+                    nodes[fade.voice]?.sendMIDIEvent(0xB0 | fade.midiChannel, data1: 123, data2: 0)
+                }
                 index += 1
             }
             let next = index < events.count ? events[index].frame : end

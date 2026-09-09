@@ -6,7 +6,7 @@ final class SurgeVoiceNode {
     let node = AVAudioMixerNode()
     var gain: Float = 0.8
     init?(patchURL: URL, sampleRate: Double = 44_100) {}
-    func schedule(notes: [PlaybackTimeline.Note], from beat: Double, bpm: Double) {}
+    func schedule(notes: [PlaybackTimeline.Note], fades: [PlaybackTimeline.Fade] = [], from beat: Double, bpm: Double) {}
     func activate() {}
     func stop() {}
     func noteOn(_ note: UInt8, velocity: UInt8) {}

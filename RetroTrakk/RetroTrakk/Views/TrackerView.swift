@@ -358,7 +358,10 @@ struct TrackerView: View {
             if shift { tracker.extendSelection(row: tracker.cursorRow, channel: tracker.cursorChannel + 1) }
             else { tracker.moveCursor(channels: 1) }
             return .handled
-        case .tab: tracker.moveCursor(channels: press.modifiers.contains(.shift) ? -1 : 1); return .handled
+        case .tab:
+            if tracker.isRecording && tracker.isPlaying { tracker.insertLiveFadeOut() }
+            else { tracker.moveCursor(channels: press.modifiers.contains(.shift) ? -1 : 1) }
+            return .handled
         case .escape: tracker.clearSelection(); return .handled
         case .delete, .deleteForward:
             tracker.deleteSelectionOrCell()
@@ -389,8 +392,14 @@ struct TrackerView: View {
         guard keyboardMonitor == nil else { return }
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
             guard !isEditingText(),
-                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-                  let characters = event.charactersIgnoringModifiers?.lowercased(),
+                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+                return event
+            }
+            if event.keyCode == 48, tracker.isRecording, tracker.isPlaying {
+                tracker.insertLiveFadeOut()
+                return nil
+            }
+            guard let characters = event.charactersIgnoringModifiers?.lowercased(),
                   let note = ComputerKeyboardPiano.midiNote(for: characters, octave: tracker.octave) else {
                 return event
             }

@@ -5,6 +5,14 @@ import Foundation
 
 // MARK: - TrackerCell
 
+/// Tracker-effekter som är gemensamma för griden, uppspelningen och WAV-export.
+/// Fxx betyder att kanalen skickar en release/all-notes-off på den raden. Det
+/// låter instrumentets egen envelope tona ut i stället för att kapa signalen.
+public enum TrackerEffect {
+    public static let fadeOut: UInt8 = 0xF
+    public static let defaultFadeParameter: UInt8 = 0x08
+}
+
 /// En cell i trackern. note: 0...127 MIDI, 254 = Note Off (===), 255 = tom (---)
 /// instrument: 0 = tom (--), annars 1-baserat index. volume: 0...64, 255 = tom.
 public struct TrackerCell: Codable, Hashable, Sendable {
@@ -280,7 +288,13 @@ struct PlaybackTimeline {
         let beat: Double
         let duration: Double
     }
+    struct Fade: Equatable {
+        let voice: Voice
+        let midiChannel: UInt8
+        let beat: Double
+    }
     let notes: [Note]
+    let fades: [Fade]
     let orderStarts: [Double]
     let orderRows: [Int]
     let stepsPerBeat: Double
@@ -289,6 +303,7 @@ struct PlaybackTimeline {
     init(song: SongModel) {
         stepsPerBeat = Double(max(1, song.stepsPerBeat))
         var notes: [Note] = []
+        var fades: [Fade] = []
         var starts: [Double] = []
         var rows: [Int] = []
         var offset = 0.0
@@ -301,7 +316,7 @@ struct PlaybackTimeline {
                 for row in 0..<count {
                     for ch in 0..<SongModel.channelCount {
                         let cell = pattern[row, ch]
-                        guard cell.note <= 127 else { continue }
+                        let beat = offset + Double(row) / stepsPerBeat
                         let instrument: InstrumentModel?
                         if cell.instrument > 0 {
                             let index = Int(cell.instrument) - 1
@@ -312,18 +327,25 @@ struct PlaybackTimeline {
                             instrument = nil
                         }
                         guard let instrument else { continue }
-                        let velocity = cell.volume == 255 ? 100 : Int((Double(cell.volume) / 64 * 127).rounded())
-                        notes.append(Note(voice: Voice(channel: ch, instrumentID: instrument.id), key: cell.note,
-                                          velocity: UInt8(max(0, min(127, velocity))),
-                                          midiChannel: UInt8(instrument.midiChannel & 15),
-                                          beat: offset + Double(row) / stepsPerBeat,
-                                          duration: 0.95 / stepsPerBeat))
+                        let voice = Voice(channel: ch, instrumentID: instrument.id)
+                        let midiChannel = UInt8(instrument.midiChannel & 15)
+                        if cell.note <= 127 {
+                            let velocity = cell.volume == 255 ? 100 : Int((Double(cell.volume) / 64 * 127).rounded())
+                            notes.append(Note(voice: voice, key: cell.note,
+                                              velocity: UInt8(max(0, min(127, velocity))),
+                                              midiChannel: midiChannel,
+                                              beat: beat,
+                                              duration: 0.95 / stepsPerBeat))
+                        }
+                        if cell.effect == TrackerEffect.fadeOut {
+                            fades.append(Fade(voice: voice, midiChannel: midiChannel, beat: beat))
+                        }
                     }
                 }
             }
             offset += Double(count) / stepsPerBeat
         }
-        self.notes = notes; orderStarts = starts; orderRows = rows; length = offset
+        self.notes = notes; self.fades = fades; orderStarts = starts; orderRows = rows; length = offset
     }
 
     func beat(order: Int, row: Int) -> Double {

@@ -67,6 +67,10 @@ check(timeline.beat(order: 1, row: 5) == 3.25, "Playback can start at a nonzero 
 check(timeline.position(at: 1.99, nearest: true)?.order == 1, "Live quantization crosses an order boundary")
 check(timeline.position(at: 3.26)?.row == 5, "Recording uses actual playback position")
 check(timeline.notes[0].voice != timeline.notes[1].voice, "Same instrument in two tracker channels has separate voices")
+song.setCell(orderPos: 0, row: 4, channel: 0, cell: TrackerCell(effect: TrackerEffect.fadeOut, param: TrackerEffect.defaultFadeParameter))
+let fadeTimeline = PlaybackTimeline(song: song)
+check(fadeTimeline.fades.count == 1 && fadeTimeline.fades[0].beat == 1.0,
+      "F08 creates a quantized channel release in the playback timeline")
 song.setCell(orderPos: 0, row: 3, channel: 0, cell: .empty)
 song.setCell(orderPos: 0, row: 6, channel: 0, cell: TrackerCell(note: 60, instrument: 1))
 check(PlaybackTimeline(song: song).notes[0].beat == 1.5, "Moved notes play at their new row")

@@ -6,10 +6,15 @@ import AVFoundation
 /// notes.
 final class SurgeVoiceNode {
     struct Event {
+        enum Kind {
+            case noteOn
+            case noteOff
+            case releaseAll
+        }
         let frame: Int64
         let key: UInt8
         let velocity: UInt8
-        let isOn: Bool
+        let kind: Kind
     }
 
     private enum Command {
@@ -55,18 +60,32 @@ final class SurgeVoiceNode {
         scratch.deallocate()
     }
 
-    func schedule(notes: [PlaybackTimeline.Note], from beat: Double, bpm: Double) {
+    func schedule(notes: [PlaybackTimeline.Note], fades: [PlaybackTimeline.Fade] = [], from beat: Double, bpm: Double) {
         let framesPerBeat = sampleRate * 60 / max(20, bpm)
         var scheduled: [Event] = []
         scheduled.reserveCapacity(notes.count * 2)
         for note in notes {
             let onFrame = Int64(((note.beat - beat) * framesPerBeat).rounded())
             let offFrame = Int64(((note.beat + note.duration - beat) * framesPerBeat).rounded())
-            if onFrame >= 0 { scheduled.append(Event(frame: onFrame, key: note.key, velocity: note.velocity, isOn: true)) }
-            if offFrame >= 0 { scheduled.append(Event(frame: offFrame, key: note.key, velocity: 0, isOn: false)) }
+            if onFrame >= 0 { scheduled.append(Event(frame: onFrame, key: note.key, velocity: note.velocity, kind: .noteOn)) }
+            if offFrame >= 0 { scheduled.append(Event(frame: offFrame, key: note.key, velocity: 0, kind: .noteOff)) }
+        }
+        for fade in fades {
+            let frame = Int64(((fade.beat - beat) * framesPerBeat).rounded())
+            if frame >= 0 { scheduled.append(Event(frame: frame, key: 0, velocity: 0, kind: .releaseAll)) }
         }
         commandLock.lock()
-        events = scheduled.sorted { $0.frame == $1.frame ? (!$0.isOn && $1.isOn) : $0.frame < $1.frame }
+        events = scheduled.sorted {
+            if $0.frame != $1.frame { return $0.frame < $1.frame }
+            func rank(_ kind: Event.Kind) -> Int {
+                switch kind {
+                case .releaseAll: return 0
+                case .noteOff: return 1
+                case .noteOn: return 2
+                }
+            }
+            return rank($0.kind) < rank($1.kind)
+        }
         eventIndex = 0
         originSampleTime = nil
         active = false
@@ -127,8 +146,11 @@ final class SurgeVoiceNode {
             let current = relativeStart + Int64(rendered)
             while eventIndex < events.count && events[eventIndex].frame <= current {
                 let event = events[eventIndex]
-                if event.isOn { rtk_surge_note_on(surge, event.key, event.velocity) }
-                else { rtk_surge_note_off(surge, event.key) }
+                switch event.kind {
+                case .noteOn: rtk_surge_note_on(surge, event.key, event.velocity)
+                case .noteOff: rtk_surge_note_off(surge, event.key)
+                case .releaseAll: rtk_surge_all_notes_off(surge)
+                }
                 eventIndex += 1
             }
             let nextEvent = eventIndex < events.count ? events[eventIndex].frame : Int64.max
