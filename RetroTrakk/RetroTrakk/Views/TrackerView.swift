@@ -288,8 +288,10 @@ struct TrackerView: View {
 
     private func rowView(_ row: Int) -> some View {
         let isActiveRow = row == activeRow
-        let isFourth = row % 4 == 3
-        let isBar = row % 16 == 15
+        // Radnumren visas nollbaserat (00, 01, …), men tracker-markeringarna
+        // ska ligga på de musikaliska raderna 04, 08, 12, 16 — inte raden före.
+        let isFourth = row > 0 && row % 4 == 0
+        let isBar = row > 0 && row % 16 == 0
         let isLast = row == rowCount - 1
 
         return HStack(spacing: 0) {
