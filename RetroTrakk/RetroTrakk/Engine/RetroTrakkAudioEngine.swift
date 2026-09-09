@@ -715,8 +715,8 @@ public enum CoreSoundFont {
         // 3. Utvecklings-, installations- och testsökvägar
         let candidates = [
             "/Applications/RetroTrakk.app/Contents/Resources/\(name).\(ext)",
-            "NovaTracker/NovaTracker/Resources/SoundFonts/\(name).\(ext)",
-            "NovaTracker/Resources/SoundFonts/\(name).\(ext)",
+            "RetroTrakk/RetroTrakk/Resources/SoundFonts/\(name).\(ext)",
+            "RetroTrakk/Resources/SoundFonts/\(name).\(ext)",
             "Resources/SoundFonts/\(name).\(ext)",
             "/tmp/\(name).\(ext)",
             "/tmp/usr/share/sounds/sf2/\(name).\(ext)",

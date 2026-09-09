@@ -44,7 +44,7 @@ graph TD
     ME --> CM
 ```
 
-* **`NovaTrackerApp`**: Registrerar och injicerar tre centrala `ObservableObject`:
+* **`RetroTrakkApp`**: Registrerar och injicerar tre centrala `ObservableObject`:
   1. `NovaAudioEngine`: Ljudgraf, sequencertillstånd, nodhantering och rendering.
   2. `MIDIEngine`: CoreMIDI-ingångar, enhetsanslutning och paketparsning.
   3. `TrackerEngine`: Spelpositionskoordinator, tangentbordslogik, markering och redigering.

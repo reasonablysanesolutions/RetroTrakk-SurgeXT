@@ -10,7 +10,7 @@ Detta dokument är en modell-agnostisk guide för alla AI-agenter (Claude, GPT, 
    * Projektet är avsiktligt byggt med 100% standard macOS SDK (SwiftUI, AVFoundation, CoreMIDI, AudioToolbox).
    * Lägg **aldrig** till externa paket om inte användaren uttryckligen ber om det.
 2. **Kör alltid verifieringstesterna:**
-   * Innan du avslutar en uppgift, kör alltid `./NovaTracker/Tests/run.sh`.
+   * Innan du avslutar en uppgift, kör alltid `./RetroTrakk/Tests/run.sh`.
    * Skriptet bygger och exekverar de tidskänsliga testerna via `swiftc`. Alla tester måste passera.
 3. **Core Audio-tråden vs UI-tråden:**
    * Sekvensering och not-uppspelning sköts av `AVAudioSequencer` på Core Audio-nivå. Skapa **aldrig** en `Timer` för att trigga notstarter under uppspelning.
@@ -27,30 +27,30 @@ Detta dokument är en modell-agnostisk guide för alla AI-agenter (Claude, GPT, 
 
 | Åtgärd | Kommando |
 |---|---|
-| **Kör tester** | `./NovaTracker/Tests/run.sh` |
-| **Bygg app via CLI** | `cd NovaTracker && xcodebuild -project RetroTrakk.xcodeproj -scheme RetroTrakk -configuration Debug -destination 'platform=macOS' build` |
-| **Bygg release & installera** | `cd NovaTracker && xcodebuild -project RetroTrakk.xcodeproj -scheme RetroTrakk -configuration Release -destination 'platform=macOS' build && cp -R ~/Library/Developer/Xcode/DerivedData/RetroTrakk-*/Build/Products/Release/RetroTrakk.app /Applications/` |
+| **Kör tester** | `./RetroTrakk/Tests/run.sh` |
+| **Bygg app via CLI** | `cd RetroTrakk && xcodebuild -project RetroTrakk.xcodeproj -scheme RetroTrakk -configuration Debug -destination 'platform=macOS' build` |
+| **Bygg release & installera** | `cd RetroTrakk && xcodebuild -project RetroTrakk.xcodeproj -scheme RetroTrakk -configuration Release -destination 'platform=macOS' build && cp -R ~/Library/Developer/Xcode/DerivedData/RetroTrakk-*/Build/Products/Release/RetroTrakk.app /Applications/` |
 
 ---
 
 ## 3. Var görs vilka ändringar?
 
 * **Ny tracker-effekt (t.ex. Portamento, Arpeggio, Volume Slide):**
-  * Utöka `TrackerCell` i `NovaTracker/Models/SongModel.swift` (`effect` och `param`).
+  * Utöka `TrackerCell` i `RetroTrakk/Models/SongModel.swift` (`effect` och `param`).
   * Implementera logik för effekten i `PlaybackTimeline` eller MIDI-eventhanteringen i `NovaAudioEngine.swift`.
   * Uppdatera `TrackerView.swift` för att rendera effektkolumnen i cellerna.
 * **Ljudmotorn & Instrumenthantering:**
-  * Modifiera `NovaTracker/Engine/NovaAudioEngine.swift` (AU-instansiering, rendering, kanalmixers).
-  * Instrumentkatalog och GM-definitioner: `NovaTracker/Engine/AppleLibrary.swift`.
-  * AU-komponenthantering: `NovaTracker/Engine/AudioUnitManager.swift`.
+  * Modifiera `RetroTrakk/Engine/NovaAudioEngine.swift` (AU-instansiering, rendering, kanalmixers).
+  * Instrumentkatalog och GM-definitioner: `RetroTrakk/Engine/AppleLibrary.swift`.
+  * AU-komponenthantering: `RetroTrakk/Engine/AudioUnitManager.swift`.
 * **Inmatning, Kvantisering & Tangentbord:**
-  * Modifiera `NovaTracker/Engine/TrackerEngine.swift` (ackorddetektering, MIDI-step, cursorrörelser).
-  * Keypress-mappning: `noteForKey` i `NovaTracker/Views/TrackerView.swift`.
+  * Modifiera `RetroTrakk/Engine/TrackerEngine.swift` (ackorddetektering, MIDI-step, cursorrörelser).
+  * Keypress-mappning: `noteForKey` i `RetroTrakk/Views/TrackerView.swift`.
 * **Gränssnitt & Paneler:**
-  * Huvudlayout: `NovaTracker/Views/ContentView.swift`.
-  * Tracker-rutnät: `NovaTracker/Views/TrackerView.swift`.
-  * Topprad (Transport, BPM, Stepper): `NovaTracker/Views/TransportBar.swift`.
-  * Sidopaneler: `NovaTracker/Views/Sidebars.swift`.
+  * Huvudlayout: `RetroTrakk/Views/ContentView.swift`.
+  * Tracker-rutnät: `RetroTrakk/Views/TrackerView.swift`.
+  * Topprad (Transport, BPM, Stepper): `RetroTrakk/Views/TransportBar.swift`.
+  * Sidopaneler: `RetroTrakk/Views/Sidebars.swift`.
 
 ---
 

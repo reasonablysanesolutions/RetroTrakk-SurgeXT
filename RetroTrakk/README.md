@@ -9,13 +9,13 @@ Native macOS-app (Apple Silicon) — modern musik-tracker inspirerad av FastTrac
 Appen ligger i **Docken** (och i `/Applications/RetroTrakk.app`) — klicka bara.
 
 För utveckling: öppna `RetroTrakk.xcodeproj` i Xcode (26+).
-2. Välj scheme **NovaTracker**, destination **My Mac**.
+2. Välj scheme **RetroTrakk**, destination **My Mac**.
 3. Tryck **⌘R**.
 
 Eller från terminal:
 
 ```sh
-cd NovaTracker
+cd RetroTrakk
 xcodebuild -project RetroTrakk.xcodeproj -scheme RetroTrakk -configuration Release -destination 'platform=macOS' build
 cp -R ~/Library/Developer/Xcode/DerivedData/RetroTrakk-*/Build/Products/Release/RetroTrakk.app /Applications/
 ```
@@ -37,12 +37,12 @@ Med MIDI-keyboard:
 
 ## Struktur
 
-- `NovaTracker/Models/SongModel.swift` — `TrackerCell`, `PatternModel`, `InstrumentModel`, `SongModel` (Codable/JSON).
-- `NovaTracker/Engine/TrackerEngine.swift` — playback-scheduler, cursor/step input, live-inspelning med kvantisering.
-- `NovaTracker/Engine/NovaAudioEngine.swift` — `AVAudioEngine`, 8 kanalmixers (volym/pan/mute/solo), DLS/AUSampler/tredjeparts-AU, WAV-render (offline).
-- `NovaTracker/Engine/AudioUnitManager.swift` — skannar MusicDevice-AU:er (Apple + tredjepart).
-- `NovaTracker/Engine/MIDIEngine.swift` — CoreMIDI-klient, note on/off + velocity.
-- `NovaTracker/Views/` — `ContentView`, `TrackerView`, `TransportBar`, `Sidebars`, `InstrumentBrowser`.
+- `RetroTrakk/Models/SongModel.swift` — `TrackerCell`, `PatternModel`, `InstrumentModel`, `SongModel` (Codable/JSON).
+- `RetroTrakk/Engine/TrackerEngine.swift` — playback-scheduler, cursor/step input, live-inspelning med kvantisering.
+- `RetroTrakk/Engine/NovaAudioEngine.swift` — `AVAudioEngine`, 8 kanalmixers (volym/pan/mute/solo), DLS/AUSampler/tredjeparts-AU, WAV-render (offline).
+- `RetroTrakk/Engine/AudioUnitManager.swift` — skannar MusicDevice-AU:er (Apple + tredjepart).
+- `RetroTrakk/Engine/MIDIEngine.swift` — CoreMIDI-klient, note on/off + velocity.
+- `RetroTrakk/Views/` — `ContentView`, `TrackerView`, `TransportBar`, `Sidebars`, `InstrumentBrowser`.
 
 ## MVP-status
 

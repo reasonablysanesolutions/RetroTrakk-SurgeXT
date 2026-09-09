@@ -15,8 +15,8 @@ struct OpenSourceLicensesView: View {
             }
         }
         let devPaths = [
-            "NovaTracker/NovaTracker/Resources/Licenses/MuseScore_General_License.md",
-            "NovaTracker/Resources/Licenses/MuseScore_General_License.md",
+            "RetroTrakk/RetroTrakk/Resources/Licenses/MuseScore_General_License.md",
+            "RetroTrakk/Resources/Licenses/MuseScore_General_License.md",
             "Resources/Licenses/MuseScore_General_License.md"
         ]
         for path in devPaths {

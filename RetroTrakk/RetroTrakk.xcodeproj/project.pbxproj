@@ -24,7 +24,6 @@
 		B117000000000000000000001 /* JGXProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = F117000000000000000000001 /* JGXProject.swift */; };
 		B118000000000000000000001 /* JGXDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = F118000000000000000000001 /* JGXDocument.swift */; };
 		A102000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A101000000000000000000001 /* Assets.xcassets */; };
-		A103000000000000000000001 /* MuseScore_General.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = F115000000000000000000001 /* MuseScore_General.sf2 */; };
 		A104000000000000000000001 /* MuseScore_General_License.md in Resources */ = {isa = PBXBuildFile; fileRef = F116000000000000000000001 /* MuseScore_General_License.md */; };
 /* End PBXBuildFile section */
 
@@ -45,7 +44,6 @@
 		F114000000000000000000001 /* OpenSourceLicensesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceLicensesView.swift; sourceTree = "<group>"; };
 		F117000000000000000000001 /* JGXProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXProject.swift; sourceTree = "<group>"; };
 		F118000000000000000000001 /* JGXDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXDocument.swift; sourceTree = "<group>"; };
-		F115000000000000000000001 /* MuseScore_General.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SoundFonts/MuseScore_General.sf2; sourceTree = "<group>"; };
 		F116000000000000000000001 /* MuseScore_General_License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Licenses/MuseScore_General_License.md; sourceTree = "<group>"; };
 		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		999999999999999999999999 /* RetroTrakk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RetroTrakk.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -88,7 +86,7 @@
 				777777777777777777777777 /* Views */,
 				888888888888888888888889 /* Resources */,
 			);
-			path = NovaTracker;
+			path = RetroTrakk;
 			sourceTree = "<group>";
 		};
 		555555555555555555555555 /* Models */ = {
@@ -130,7 +128,6 @@
 		888888888888888888888889 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				F115000000000000000000001 /* MuseScore_General.sf2 */,
 				F116000000000000000000001 /* MuseScore_General_License.md */,
 			);
 			path = Resources;
@@ -196,7 +193,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				A102000000000000000000001 /* Assets.xcassets in Resources */,
-				A103000000000000000000001 /* MuseScore_General.sf2 in Resources */,
 				A104000000000000000000001 /* MuseScore_General_License.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -294,7 +290,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NovaTracker/Info.plist;
+				INFOPLIST_FILE = RetroTrakk/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RetroTrakk;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "RetroTrakk (C) 2026 Jimmy Granlund";
@@ -324,7 +320,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = NovaTracker/Info.plist;
+				INFOPLIST_FILE = RetroTrakk/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RetroTrakk;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "RetroTrakk (C) 2026 Jimmy Granlund";

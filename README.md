@@ -12,28 +12,28 @@ Byggd 100% i native **Swift** och **SwiftUI**, med ljud via **AVFoundation** (`A
 * **Plattform:** macOS 14.0+ på Apple Silicon (M1/M2/M3/M4).
 * **Version:** 0.9 (Build 10).
 * **Bundle ID:** `com.retrotrakk.app`
-* **Projektfil:** `NovaTracker/RetroTrakk.xcodeproj`
+* **Projektfil:** `RetroTrakk/RetroTrakk.xcodeproj`
 
 ---
 
 ## Kom igång & köra
 
 ### Från Xcode
-1. Öppna `NovaTracker/RetroTrakk.xcodeproj` i Xcode.
-2. Välj scheme **RetroTrakk** (eller **NovaTracker**), destination **My Mac**.
+1. Öppna `RetroTrakk/RetroTrakk.xcodeproj` i Xcode.
+2. Välj scheme **RetroTrakk** (eller **RetroTrakk**), destination **My Mac**.
 3. Tryck **⌘R** (Run) eller **⌘B** (Build).
 
 ### Från Terminal
 Bygg release-version och kopiera till `/Applications`:
 ```bash
-cd NovaTracker
+cd RetroTrakk
 xcodebuild -project RetroTrakk.xcodeproj -scheme RetroTrakk -configuration Release -destination 'platform=macOS' build
 cp -R ~/Library/Developer/Xcode/DerivedData/RetroTrakk-*/Build/Products/Release/RetroTrakk.app /Applications/
 ```
 
 Kör automatiserade verifieringstester (bygger och kör utan Xcode GUI):
 ```bash
-./NovaTracker/Tests/run.sh
+./RetroTrakk/Tests/run.sh
 ```
 
 ---
@@ -45,11 +45,11 @@ retrotrakk/
 ├── README.md                     # Detta dokument (översikt, snabbstart, status)
 ├── ARCHITECTURE.md               # Detaljerad teknisk arkitektur och designval
 ├── AGENTS.md                     # Riktlinjer och regler för AI-assistenter/modeller
-├── NovaTracker/
+├── RetroTrakk/
 │   ├── RetroTrakk.xcodeproj      # Xcode-projekt (inga externa SPM-paket)
 │   ├── README.md                 # Projektspecifik snabbguide
-│   ├── NovaTracker/
-│   │   ├── NovaTrackerApp.swift  # SwiftUI App-livscykel och Environment-setup
+│   ├── RetroTrakk/
+│   │   ├── RetroTrakkApp.swift  # SwiftUI App-livscykel och Environment-setup
 │   │   ├── Models/
 │   │   │   └── SongModel.swift   # TrackerCell, Pattern, Instrument, Song, PlaybackTimeline
 │   │   ├── Engine/
@@ -97,7 +97,7 @@ retrotrakk/
 
 ## Verifiering & Testsvit
 
-Projektet har en automatiserad testsvit i `NovaTracker/Tests/main.swift` som verifierar:
+Projektet har en automatiserad testsvit i `RetroTrakk/Tests/main.swift` som verifierar:
 * Sample-exakt timing för WAV-export vid olika BPM (60, 125, 240) inom 2 samplars tolerans.
 * Klockstabilitet i Core Audio när UI-tråden blockeras (700 ms utan drift).
 * Realtidsuppdatering av noter under pågående uppspelning utan klockomstart.
@@ -105,7 +105,7 @@ Projektet har en automatiserad testsvit i `NovaTracker/Tests/main.swift` som ver
 
 Kör testerna med:
 ```bash
-./NovaTracker/Tests/run.sh
+./RetroTrakk/Tests/run.sh
 ```
 
 ---
