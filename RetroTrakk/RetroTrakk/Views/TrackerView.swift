@@ -332,6 +332,10 @@ struct TrackerView: View {
     private func handleKey(_ press: KeyPress) -> KeyPress.Result {
         let chars = press.characters.lowercased()
         if press.modifiers.contains(.command) {
+            if press.key == .tab {
+                tracker.moveCursor(channels: -1)
+                return .handled
+            }
             switch chars {
             case "c": tracker.copySelection(); return .handled
             case "x": tracker.cutSelection(); return .handled
@@ -391,10 +395,14 @@ struct TrackerView: View {
     private func installKeyboardMonitor() {
         guard keyboardMonitor == nil else { return }
         keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { event in
-            guard !isEditingText(),
-                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty else {
+            guard !isEditingText() else {
                 return event
             }
+            if event.keyCode == 48, event.modifierFlags.contains(.command) {
+                tracker.moveCursor(channels: -1)
+                return nil
+            }
+            guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return event }
             if event.keyCode == 48, tracker.isRecording, tracker.isPlaying {
                 tracker.insertLiveFadeOut()
                 return nil
@@ -651,6 +659,7 @@ struct ChannelHeaderView: View {
         .onTapGesture {
             tracker.cursorChannel = channel
         }
+        .help("Klicka var som helst i kanalhuvudet för att välja kanal \(channel + 1).")
         .popover(isPresented: $showPicker) {
             ChannelInstrumentPicker(channel: channel)
                 .environmentObject(tracker)

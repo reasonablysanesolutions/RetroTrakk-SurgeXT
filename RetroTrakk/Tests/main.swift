@@ -10,6 +10,16 @@ func check(_ condition: @autoclosure () -> Bool, _ message: String) {
 let brandNewSong = SongModel()
 check(brandNewSong.instruments.isEmpty, "Brand new SongModel starts with empty instruments")
 check(brandNewSong.channelInstruments.allSatisfy { $0 == nil }, "Brand new SongModel starts with all channel instruments unassigned")
+let emptyTransportTimeline = PlaybackTimeline(song: brandNewSong)
+check(emptyTransportTimeline.length > 0 && emptyTransportTimeline.notes.isEmpty,
+      "An empty project still has a valid transport timeline for live recording")
+let emptyRecordingAudio = RetroTrakkAudioEngine()
+let emptyRecordingEngine = TrackerEngine()
+emptyRecordingEngine.audio = emptyRecordingAudio
+emptyRecordingEngine.play()
+check(emptyRecordingEngine.isPlaying, "Play starts an empty project so live recording can begin")
+emptyRecordingEngine.stop()
+emptyRecordingAudio.stopEngine()
 
 var song = SongModel()
 song.bpm = 120; song.stepsPerBeat = 4

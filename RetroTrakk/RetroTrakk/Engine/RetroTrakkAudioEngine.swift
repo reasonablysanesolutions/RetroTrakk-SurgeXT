@@ -492,7 +492,12 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         sequencer.rate = 1
         try updatePlayback(song: song, timeline: timeline)
         if tracks.isEmpty {
+            // A sequencer cannot start a destination-less music track. Reuse
+            // the already-owned audition sampler as a silent transport anchor
+            // until the first live-recorded note attaches its real instrument.
+            ensureAuditionEngine()
             let track = sequencer.createAndAppendTrack()
+            track.destinationAudioUnit = auditionSampler
             track.lengthInBeats = timeline.length
             transportTrack = track
         }
@@ -817,10 +822,15 @@ public final class WaveformManager: ObservableObject {
             activeFrames -= 1
             hasSignal = true
         }
+        let keepAnimating = activeFrames > 0
         lock.unlock()
 
-        signalPeak = current.flatMap { $0 }.reduce(Float(0)) { max($0, abs($1)) }
-        if hasSignal || activeFrames > 0 {
+        let peak = current.flatMap { $0 }.reduce(Float(0)) { max($0, abs($1)) }
+        // Publishing an unchanged zero peak invalidated SwiftUI thirty times
+        // per second while a project was silent. Only notify views on a real
+        // level change; audio timing remains entirely in AVAudioSequencer.
+        if abs(signalPeak - peak) > 0.001 { signalPeak = peak }
+        if hasSignal || keepAnimating {
             waveforms = current
         }
     }

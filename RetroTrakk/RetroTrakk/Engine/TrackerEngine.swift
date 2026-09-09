@@ -82,7 +82,10 @@ public final class TrackerEngine: ObservableObject {
 
     private var playheadTimer: Timer?
     private var playbackTimeline: PlaybackTimeline?
-    private var activeNotes: [UInt8: Int] = [:]
+    /// A live key is always released on key-up. The generation also makes the
+    /// short safety release harmless when the same MIDI key is retriggered.
+    private var activeNotes: [UInt8: (instrumentID: Int, generation: Int)] = [:]
+    private var liveNoteGeneration = 0
     /// Live notes are previewed immediately. Rewriting AVMusicTracks for every
     /// key press can stall the main thread, so one rebuild is deferred until
     /// Record is switched off (or until the next Play after Stop).
@@ -115,11 +118,6 @@ public final class TrackerEngine: ObservableObject {
         guard !isPlaying, let audio else { return }
         let timeline = PlaybackTimeline(song: song)
         guard timeline.length > 0 else { return }
-        guard !timeline.notes.isEmpty else {
-            audio.statusText = "Pattern/order-listan innehåller inga noter att spela."
-            return
-        }
-
         // Start from row 0 in current pattern order when requested or by default
         var startOrder = max(0, min(song.orders.count - 1, orderPos))
         let patternRows = song.pattern(id: song.orders[startOrder])?.rowCount ?? 64
@@ -466,8 +464,8 @@ public final class TrackerEngine: ObservableObject {
         cell.effect = TrackerEffect.fadeOut
         cell.param = TrackerEffect.defaultFadeParameter
         song.setCell(orderPos: position.order, row: position.row, channel: cursorChannel, cell: cell)
-        for (note, instrumentID) in activeNotes {
-            audio.previewOff(instrumentId: instrumentID, midiNote: note)
+        for (note, active) in activeNotes {
+            audio.previewOff(instrumentId: active.instrumentID, midiNote: note)
         }
         activeNotes.removeAll()
         CrashDiagnostics.shared.record("Live recording: inserted F08 release at order \(position.order), row \(position.row), channel \(cursorChannel + 1).")
@@ -511,15 +509,25 @@ public final class TrackerEngine: ObservableObject {
               let position = timeline.position(at: audio.playbackBeat, nearest: quantize) else { return }
         if let inst = instrumentFor(channel: cursorChannel) {
             audio.previewOn(inst: inst, midiNote: note, velocity: velocity)
-            activeNotes[note] = inst.id
+            liveNoteGeneration &+= 1
+            let generation = liveNoteGeneration
+            activeNotes[note] = (inst.id, generation)
+            // A missing MIDI Note Off must never build a wall of sustained
+            // sounds. Normal key-up releases sooner; this is only a short
+            // failsafe for unplugged keyboards and stuck events.
+            let safetyRelease = min(0.32, max(0.18, secPerRow * 2.0))
+            DispatchQueue.main.asyncAfter(deadline: .now() + safetyRelease) { [weak self] in
+                guard self?.activeNotes[note]?.generation == generation else { return }
+                self?.recordLiveNoteOff(note: note)
+            }
         }
         let cell = TrackerCell(note: note, instrument: instNumber(forChannel: cursorChannel), volume: vol64(velocity))
         song.setCell(orderPos: position.order, row: position.row, channel: cursorChannel, cell: cell)
     }
 
     private func recordLiveNoteOff(note: UInt8) {
-        if let iid = activeNotes.removeValue(forKey: note) {
-            audio?.previewOff(instrumentId: iid, midiNote: note)
+        if let active = activeNotes.removeValue(forKey: note) {
+            audio?.previewOff(instrumentId: active.instrumentID, midiNote: note)
         }
     }
 
