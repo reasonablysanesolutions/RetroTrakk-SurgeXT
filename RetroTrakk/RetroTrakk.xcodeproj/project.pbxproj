@@ -23,6 +23,7 @@
 		B114000000000000000000001 /* OpenSourceLicensesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F114000000000000000000001 /* OpenSourceLicensesView.swift */; };
 		B117000000000000000000001 /* JGXProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = F117000000000000000000001 /* JGXProject.swift */; };
 		B118000000000000000000001 /* JGXDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = F118000000000000000000001 /* JGXDocument.swift */; };
+		B119000000000000000000001 /* SurgeBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F119000000000000000000001 /* SurgeBridge.mm */; };
 		A102000000000000000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A101000000000000000000001 /* Assets.xcassets */; };
 		A104000000000000000000001 /* MuseScore_General_License.md in Resources */ = {isa = PBXBuildFile; fileRef = F116000000000000000000001 /* MuseScore_General_License.md */; };
 /* End PBXBuildFile section */
@@ -44,6 +45,8 @@
 		F114000000000000000000001 /* OpenSourceLicensesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenSourceLicensesView.swift; sourceTree = "<group>"; };
 		F117000000000000000000001 /* JGXProject.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXProject.swift; sourceTree = "<group>"; };
 		F118000000000000000000001 /* JGXDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JGXDocument.swift; sourceTree = "<group>"; };
+		F119000000000000000000001 /* SurgeBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SurgeBridge.mm; sourceTree = "<group>"; };
+		F120000000000000000000001 /* SurgeBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SurgeBridge.h; sourceTree = "<group>"; };
 		F116000000000000000000001 /* MuseScore_General_License.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = Licenses/MuseScore_General_License.md; sourceTree = "<group>"; };
 		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		999999999999999999999999 /* RetroTrakk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RetroTrakk.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -108,6 +111,8 @@
 				F105000000000000000000001 /* RetroTrakkAudioEngine.swift */,
 				F106000000000000000000001 /* TrackerEngine.swift */,
 				F112000000000000000000001 /* AppleLibrary.swift */,
+				F119000000000000000000001 /* SurgeBridge.mm */,
+				F120000000000000000000001 /* SurgeBridge.h */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -220,6 +225,7 @@
 				B114000000000000000000001 /* OpenSourceLicensesView.swift in Sources */,
 				B117000000000000000000001 /* JGXProject.swift in Sources */,
 				B118000000000000000000001 /* JGXDocument.swift in Sources */,
+				B119000000000000000000001 /* SurgeBridge.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,6 +289,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_STYLE = Automatic;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				OTHER_CPLUSPLUSFLAGS = "-fno-char8_t";
+				OTHER_LDFLAGS = "$(SRCROOT)/../.surge-build/src/common/libsurge-common.a $(SRCROOT)/../.surge-build/src/lua/libsurge-lua-src.a $(SRCROOT)/../.surge-build/libs/fmt/libfmt.a $(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/bin/arm64/libluajit.a $(SRCROOT)/../.surge-build/libs/pffft/libpffft.a $(SRCROOT)/../.surge-build/libs/zstd/build/cmake/lib/libzstd.a $(SRCROOT)/../.surge-build/libs/airwindows/libairwindows.a $(SRCROOT)/../.surge-build/libs/binn/libbinn.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libsst-plugininfra.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/strnatcmp/libstrnatcmp.a $(SRCROOT)/../.surge-build/libs/eurorack/libeurorack.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/tinyxml/libtinyxml.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-preset-api.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-presets.a $(SRCROOT)/../.surge-build/libs/oddsound-mts/liboddsound-mts.a $(SRCROOT)/../.surge-build/libs/sqlite-3.23.3/libsqlite.a $(SRCROOT)/../.surge-build/src/common/libsurge-common-binary.a $(SRCROOT)/../.surge-build/src/platform/libsurge-platform.a -framework CoreServices -framework CoreFoundation -framework Foundation -framework Accelerate -framework Cocoa -framework IOKit -framework Security";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -290,6 +299,42 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"MAC=1",
+					"HAS_LUA=1",
+					"SURGE_COMPILE_BLOCK_SIZE=32",
+					"SURGE_INCLUDE_AIRWINDOWS=1",
+					"SURGE_XT_1X_WST=1",
+					"SST_SIMD_OMIT_NATIVE_ALIASES=1",
+					"TIXML_USE_STL",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../Vendor/surge/src/common",
+					"$(SRCROOT)/../Vendor/surge/src/common/dsp",
+					"$(SRCROOT)/../Vendor/surge/src/common/dsp/**",
+					"$(SRCROOT)/../Vendor/surge/libs/simde",
+					"$(SRCROOT)/../Vendor/surge/libs/fmt/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-basic-blocks/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-basic-blocks/libs",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-filters/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-effects/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-waveshapers/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-plugininfra/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-cpputils/include",
+					"$(SRCROOT)/../Vendor/surge/libs/tuning-library/include",
+					"$(SRCROOT)/../Vendor/surge/libs/r8brain-free-src",
+					"$(SRCROOT)/../Vendor/surge/libs/pffft",
+					"$(SRCROOT)/../Vendor/surge/libs/airwindows/include",
+					"$(SRCROOT)/../Vendor/surge/libs/binn/include",
+					"$(SRCROOT)/../Vendor/surge/libs/eurorack/eurorack",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-plugininfra/libs/tinyxml/include",
+					"$(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/filesystem/include",
+					"$(SRCROOT)/../.surge-build/src/lua/include",
+					"$(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/include",
+					"$(SRCROOT)/../.surge-build/geninclude",
+					"$(SRCROOT)/../.surge-build/_cmrc/include",
+				);
 				INFOPLIST_FILE = RetroTrakk/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RetroTrakk;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
@@ -313,6 +358,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CODE_SIGN_STYLE = Automatic;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
+				OTHER_CPLUSPLUSFLAGS = "-fno-char8_t";
+				OTHER_LDFLAGS = "$(SRCROOT)/../.surge-build/src/common/libsurge-common.a $(SRCROOT)/../.surge-build/src/lua/libsurge-lua-src.a $(SRCROOT)/../.surge-build/libs/fmt/libfmt.a $(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/bin/arm64/libluajit.a $(SRCROOT)/../.surge-build/libs/pffft/libpffft.a $(SRCROOT)/../.surge-build/libs/zstd/build/cmake/lib/libzstd.a $(SRCROOT)/../.surge-build/libs/airwindows/libairwindows.a $(SRCROOT)/../.surge-build/libs/binn/libbinn.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libsst-plugininfra.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/strnatcmp/libstrnatcmp.a $(SRCROOT)/../.surge-build/libs/eurorack/libeurorack.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/tinyxml/libtinyxml.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-preset-api.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-presets.a $(SRCROOT)/../.surge-build/libs/oddsound-mts/liboddsound-mts.a $(SRCROOT)/../.surge-build/libs/sqlite-3.23.3/libsqlite.a $(SRCROOT)/../.surge-build/src/common/libsurge-common-binary.a $(SRCROOT)/../.surge-build/src/platform/libsurge-platform.a -framework CoreServices -framework CoreFoundation -framework Foundation -framework Accelerate -framework Cocoa -framework IOKit -framework Security";
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -320,6 +368,42 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"MAC=1",
+					"HAS_LUA=1",
+					"SURGE_COMPILE_BLOCK_SIZE=32",
+					"SURGE_INCLUDE_AIRWINDOWS=1",
+					"SURGE_XT_1X_WST=1",
+					"SST_SIMD_OMIT_NATIVE_ALIASES=1",
+					"TIXML_USE_STL",
+				);
+				HEADER_SEARCH_PATHS = (
+					"$(SRCROOT)/../Vendor/surge/src/common",
+					"$(SRCROOT)/../Vendor/surge/src/common/dsp",
+					"$(SRCROOT)/../Vendor/surge/src/common/dsp/**",
+					"$(SRCROOT)/../Vendor/surge/libs/simde",
+					"$(SRCROOT)/../Vendor/surge/libs/fmt/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-basic-blocks/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-basic-blocks/libs",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-filters/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-effects/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-waveshapers/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-plugininfra/include",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-cpputils/include",
+					"$(SRCROOT)/../Vendor/surge/libs/tuning-library/include",
+					"$(SRCROOT)/../Vendor/surge/libs/r8brain-free-src",
+					"$(SRCROOT)/../Vendor/surge/libs/pffft",
+					"$(SRCROOT)/../Vendor/surge/libs/airwindows/include",
+					"$(SRCROOT)/../Vendor/surge/libs/binn/include",
+					"$(SRCROOT)/../Vendor/surge/libs/eurorack/eurorack",
+					"$(SRCROOT)/../Vendor/surge/libs/sst/sst-plugininfra/libs/tinyxml/include",
+					"$(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/filesystem/include",
+					"$(SRCROOT)/../.surge-build/src/lua/include",
+					"$(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/include",
+					"$(SRCROOT)/../.surge-build/geninclude",
+					"$(SRCROOT)/../.surge-build/_cmrc/include",
+				);
 				INFOPLIST_FILE = RetroTrakk/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = RetroTrakk;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
