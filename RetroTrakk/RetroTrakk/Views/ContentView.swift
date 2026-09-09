@@ -24,6 +24,10 @@ struct ContentView: View {
                 TrackerView()
                     .environmentObject(tracker)
                     .frame(minWidth: 760)
+                Divider()
+                OrderSidebar()
+                    .environmentObject(tracker)
+                    .frame(width: 230)
             }
             .background(Color(nsColor: .windowBackgroundColor))
             StatusBar(message: statusMessage)

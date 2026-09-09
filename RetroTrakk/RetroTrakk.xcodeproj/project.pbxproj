@@ -311,7 +311,7 @@
 				OTHER_CPLUSPLUSFLAGS = "-fno-char8_t";
 				OTHER_LDFLAGS = "$(SRCROOT)/../.surge-build/src/common/libsurge-common.a $(SRCROOT)/../.surge-build/src/lua/libsurge-lua-src.a $(SRCROOT)/../.surge-build/libs/fmt/libfmt.a $(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/bin/arm64/libluajit.a $(SRCROOT)/../.surge-build/libs/pffft/libpffft.a $(SRCROOT)/../.surge-build/libs/zstd/build/cmake/lib/libzstd.a $(SRCROOT)/../.surge-build/libs/airwindows/libairwindows.a $(SRCROOT)/../.surge-build/libs/binn/libbinn.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libsst-plugininfra.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/strnatcmp/libstrnatcmp.a $(SRCROOT)/../.surge-build/libs/eurorack/libeurorack.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/tinyxml/libtinyxml.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-preset-api.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-presets.a $(SRCROOT)/../.surge-build/libs/oddsound-mts/liboddsound-mts.a $(SRCROOT)/../.surge-build/libs/sqlite-3.23.3/libsqlite.a $(SRCROOT)/../.surge-build/src/common/libsurge-common-binary.a $(SRCROOT)/../.surge-build/src/platform/libsurge-platform.a -framework CoreServices -framework CoreFoundation -framework Foundation -framework Accelerate -framework Cocoa -framework IOKit -framework Security";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -381,7 +381,7 @@
 				OTHER_CPLUSPLUSFLAGS = "-fno-char8_t";
 				OTHER_LDFLAGS = "$(SRCROOT)/../.surge-build/src/common/libsurge-common.a $(SRCROOT)/../.surge-build/src/lua/libsurge-lua-src.a $(SRCROOT)/../.surge-build/libs/fmt/libfmt.a $(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/bin/arm64/libluajit.a $(SRCROOT)/../.surge-build/libs/pffft/libpffft.a $(SRCROOT)/../.surge-build/libs/zstd/build/cmake/lib/libzstd.a $(SRCROOT)/../.surge-build/libs/airwindows/libairwindows.a $(SRCROOT)/../.surge-build/libs/binn/libbinn.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libsst-plugininfra.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/strnatcmp/libstrnatcmp.a $(SRCROOT)/../.surge-build/libs/eurorack/libeurorack.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/tinyxml/libtinyxml.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-preset-api.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-presets.a $(SRCROOT)/../.surge-build/libs/oddsound-mts/liboddsound-mts.a $(SRCROOT)/../.surge-build/libs/sqlite-3.23.3/libsqlite.a $(SRCROOT)/../.surge-build/src/common/libsurge-common-binary.a $(SRCROOT)/../.surge-build/src/platform/libsurge-platform.a -framework CoreServices -framework CoreFoundation -framework Foundation -framework Accelerate -framework Cocoa -framework IOKit -framework Security";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 19;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
