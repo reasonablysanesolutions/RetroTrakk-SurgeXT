@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Surge XT:s LuaJIT (Formula-modulatorer) exekverar JIT-kompilerad kod på
+	     ljudtråden. Utan dessa dödas processen av kernel med CODESIGNING
+	     "Invalid Page" så fort ett patch med Lua-formel renderas. -->
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+	<true/>
+</dict>
+</plist>

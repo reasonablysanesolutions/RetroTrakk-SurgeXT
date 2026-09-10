@@ -55,6 +55,7 @@
 		F123000000000000000000001 /* RetroTrakk-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "RetroTrakk-Bridging-Header.h"; sourceTree = "<group>"; };
 		F124000000000000000000001 /* SurgePresetCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurgePresetCatalog.swift; sourceTree = "<group>"; };
 		F126000000000000000000001 /* CrashDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashDiagnostics.swift; sourceTree = "<group>"; };
+		F127000000000000000000001 /* RetroTrakk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RetroTrakk.entitlements; sourceTree = "<group>"; };
 		A101000000000000000000001 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F121000000000000000000001 /* SurgeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeData; path = Resources/SurgeData; sourceTree = SOURCE_ROOT; };
 		F125000000000000000000001 /* SurgeRuntimeData */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SurgeRuntimeData; path = Resources/SurgeRuntimeData; sourceTree = SOURCE_ROOT; };
@@ -93,6 +94,7 @@
 			children = (
 				F101000000000000000000001 /* RetroTrakkApp.swift */,
 				F126000000000000000000001 /* CrashDiagnostics.swift */,
+				F127000000000000000000001 /* RetroTrakk.entitlements */,
 				A101000000000000000000001 /* Assets.xcassets */,
 				555555555555555555555555 /* Models */,
 				666666666666666666666666 /* Engine */,
@@ -306,12 +308,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = RetroTrakk/RetroTrakk.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				OTHER_CPLUSPLUSFLAGS = "-fno-char8_t";
 				OTHER_LDFLAGS = "$(SRCROOT)/../.surge-build/src/common/libsurge-common.a $(SRCROOT)/../.surge-build/src/lua/libsurge-lua-src.a $(SRCROOT)/../.surge-build/libs/fmt/libfmt.a $(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/bin/arm64/libluajit.a $(SRCROOT)/../.surge-build/libs/pffft/libpffft.a $(SRCROOT)/../.surge-build/libs/zstd/build/cmake/lib/libzstd.a $(SRCROOT)/../.surge-build/libs/airwindows/libairwindows.a $(SRCROOT)/../.surge-build/libs/binn/libbinn.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libsst-plugininfra.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/strnatcmp/libstrnatcmp.a $(SRCROOT)/../.surge-build/libs/eurorack/libeurorack.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/tinyxml/libtinyxml.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-preset-api.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-presets.a $(SRCROOT)/../.surge-build/libs/oddsound-mts/liboddsound-mts.a $(SRCROOT)/../.surge-build/libs/sqlite-3.23.3/libsqlite.a $(SRCROOT)/../.surge-build/src/common/libsurge-common-binary.a $(SRCROOT)/../.surge-build/src/platform/libsurge-platform.a -framework CoreServices -framework CoreFoundation -framework Foundation -framework Accelerate -framework Cocoa -framework IOKit -framework Security";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -376,12 +379,13 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = RetroTrakk/RetroTrakk.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				OTHER_CPLUSPLUSFLAGS = "-fno-char8_t";
 				OTHER_LDFLAGS = "$(SRCROOT)/../.surge-build/src/common/libsurge-common.a $(SRCROOT)/../.surge-build/src/lua/libsurge-lua-src.a $(SRCROOT)/../.surge-build/libs/fmt/libfmt.a $(SRCROOT)/../.surge-build/libs/luajitlib/LuaJIT/bin/arm64/libluajit.a $(SRCROOT)/../.surge-build/libs/pffft/libpffft.a $(SRCROOT)/../.surge-build/libs/zstd/build/cmake/lib/libzstd.a $(SRCROOT)/../.surge-build/libs/airwindows/libairwindows.a $(SRCROOT)/../.surge-build/libs/binn/libbinn.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libsst-plugininfra.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/strnatcmp/libstrnatcmp.a $(SRCROOT)/../.surge-build/libs/eurorack/libeurorack.a $(SRCROOT)/../.surge-build/libs/sst/sst-plugininfra/libs/tinyxml/libtinyxml.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-preset-api.a $(SRCROOT)/../.surge-build/libs/sst/sst-effects/libsst-effects-presets.a $(SRCROOT)/../.surge-build/libs/oddsound-mts/liboddsound-mts.a $(SRCROOT)/../.surge-build/libs/sqlite-3.23.3/libsqlite.a $(SRCROOT)/../.surge-build/src/common/libsurge-common-binary.a $(SRCROOT)/../.surge-build/src/platform/libsurge-platform.a -framework CoreServices -framework CoreFoundation -framework Foundation -framework Accelerate -framework Cocoa -framework IOKit -framework Security";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 19;
+				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
