@@ -340,6 +340,20 @@ let songJSON = try JSONEncoder().encode(fullSong)
 let restoredSong = try JSONDecoder().decode(SongModel.self, from: songJSON)
 check(restoredSong.instruments[0].kind == .surge && restoredSong.instruments[0].surgePatchPath == firstPreset.sourceIdentifier, "Surge XT preset persists in project JSON")
 
+// Offline WAV-rendering måste använda samma tidslinje för Surge-röster som för
+// MIDI-röster — tidigare kastade renderToWAV "använder sin inbyggda ljudnod".
+var surgeRenderSong = SongModel()
+surgeRenderSong.bpm = 120
+surgeRenderSong.orders = [0]
+surgeRenderSong.patterns = [PatternModel(id: 0, name: "Surge render", rows: 16)]
+surgeRenderSong.instruments = [InstrumentModel(id: 0, name: firstPreset.displayName, kind: .surge, surgePatchPath: firstPreset.sourceIdentifier)]
+surgeRenderSong.channelInstruments[0] = 0
+surgeRenderSong.setCell(orderPos: 0, row: 0, channel: 0, cell: TrackerCell(note: 60, instrument: 1))
+let surgeRenderURL = dir.appendingPathComponent("surge-render.wav")
+try audio.renderToWAV(song: surgeRenderSong, url: surgeRenderURL)
+let surgeRenderFile = try AVAudioFile(forReading: surgeRenderURL)
+check(surgeRenderFile.length == 132300, "Surge offline render produces a full-length WAV instead of throwing")
+
 // 8. JGX Project File Format (.jgx) Tests
 print("--- Starting JGX Project Format (.jgx) Tests ---")
 let jgxURL = dir.appendingPathComponent("test-project.jgx")

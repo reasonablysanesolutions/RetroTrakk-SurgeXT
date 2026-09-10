@@ -673,17 +673,42 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         let rate = 44_100.0
         let offline = AVAudioEngine()
         var nodes: [PlaybackTimeline.Voice: AVAudioUnitMIDIInstrument] = [:]
+        // Surge-röster renderas av sina egna noder med exakt samma tidslinje:
+        // noterna är förschemalagda per frame (schedule from: 0), så
+        // MIDI-loopen nedan hoppar dem medvetet över (nodes saknar nyckeln).
+        var surgeNodes: [PlaybackTimeline.Voice: SurgeVoiceNode] = [:]
         let solo = song.channelSolo.contains(true)
-        for key in Set(timeline.notes.map(\.voice)) {
-            guard let inst = song.instruments.first(where: { $0.id == key.instrumentID }) else { continue }
-            let node = try makeInstrument(inst)
+        func channelMixer(for ch: Int) -> AVAudioMixerNode {
             let mixer = AVAudioMixerNode()
-            offline.attach(node); offline.attach(mixer)
-            offline.connect(node, to: mixer, format: nil)
+            offline.attach(mixer)
             offline.connect(mixer, to: offline.mainMixerNode, format: nil)
-            let ch = key.channel
             mixer.outputVolume = song.channelEnabled[ch] && !song.channelMute[ch] && (!solo || song.channelSolo[ch]) ? Float(song.channelVolume[ch]) : 0
             mixer.pan = Float(song.channelPan[ch])
+            return mixer
+        }
+        for key in Set(timeline.notes.map(\.voice)) {
+            guard let inst = song.instruments.first(where: { $0.id == key.instrumentID }) else { continue }
+            if inst.kind == .surge {
+                guard let path = inst.surgePatchPath,
+                      let patch = SurgePresetCatalog.patchURL(relativePath: path),
+                      let voice = SurgeVoiceNode(patchURL: patch, sampleRate: rate) else {
+                    throw playbackError("Surge XT-preset saknas för \(inst.name).")
+                }
+                let mixer = channelMixer(for: key.channel)
+                offline.attach(voice.node)
+                offline.connect(voice.node, to: mixer, format: nil)
+                voice.gain = Float(inst.volume)
+                voice.schedule(notes: timeline.notes.filter { $0.voice == key },
+                               fades: timeline.fades.filter { $0.voice == key },
+                               from: 0, bpm: song.bpm)
+                voice.activate()
+                surgeNodes[key] = voice
+                continue
+            }
+            let node = try makeInstrument(inst)
+            let mixer = channelMixer(for: key.channel)
+            offline.attach(node)
+            offline.connect(node, to: mixer, format: nil)
             node.sendController(7, withValue: UInt8(max(0, min(127, Int(inst.volume * 127)))), onChannel: UInt8(inst.midiChannel & 15))
             node.sendController(10, withValue: UInt8(max(0, min(127, Int((inst.pan + 1) * 63.5)))), onChannel: UInt8(inst.midiChannel & 15))
             nodes[key] = node
@@ -692,6 +717,7 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         try offline.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 4096)
         try offline.start()
         defer { offline.stop(); offline.disableManualRenderingMode() }
+        defer { for voice in surgeNodes.values { voice.stop() } }
         let file = try AVAudioFile(forWriting: url, settings: [AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: rate, AVNumberOfChannelsKey: 2, AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false])
