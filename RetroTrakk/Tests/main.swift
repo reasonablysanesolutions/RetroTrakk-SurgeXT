@@ -354,6 +354,17 @@ try audio.renderToWAV(song: surgeRenderSong, url: surgeRenderURL)
 let surgeRenderFile = try AVAudioFile(forReading: surgeRenderURL)
 check(surgeRenderFile.length == 132300, "Surge offline render produces a full-length WAV instead of throwing")
 
+// Tredjepartspack i SurgeUserPatches (SU-NO-XT, DanAn, New Loops, Phasor Space):
+// egna IDn, pack-kategorier och upplösbara sökvägar — utanför git-paketet.
+let userPresets = InstrumentCatalog.all.filter { $0.id.hasPrefix("surge-user/") }
+check(!userPresets.isEmpty, "Third-party user presets load from SurgeUserPatches")
+check(Set(userPresets.map(\.category)).count >= 5, "User presets span multiple pack categories")
+check(userPresets.contains { $0.category == .sequence }, "Rhythmic/sequence folders map to the Sequences category")
+if let firstUser = userPresets.first {
+    check(SurgePresetCatalog.patchURL(relativePath: firstUser.sourceIdentifier) != nil, "User preset path resolves to disk")
+}
+check(InstrumentCatalog.all.allSatisfy { $0.sourceType == .surge }, "User presets are Surge XT sounds like the factory catalog")
+
 // 8. JGX Project File Format (.jgx) Tests
 print("--- Starting JGX Project Format (.jgx) Tests ---")
 let jgxURL = dir.appendingPathComponent("test-project.jgx")

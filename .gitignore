@@ -28,5 +28,10 @@ xcuserdata/
 *.profraw
 *.dSYM
 
+# Third-party Surge XT user presets: bundled with the local app build but never
+# committed to the github package (licenses: MIT/CC0/free; see pack READMEs).
+RetroTrakk/Resources/SurgeUserPatches/
+RetroTrakk-User-Presets.zip
+
 # Temporary test directories
 /tmp/retrotrakk-verification.*
