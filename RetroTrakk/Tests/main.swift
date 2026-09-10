@@ -132,6 +132,19 @@ audio.stopPlayback()
 let stopped = audio.playbackBeat
 Thread.sleep(forTimeInterval: 0.1)
 check(abs(audio.playbackBeat - stopped) < 0.001, "Stop cancels native playback")
+// Master FX: förvärmda noder styrs via vanliga setters (aldrig @Published,
+// aldrig grafombyggnad) så top-bar-dragningar inte invaliderar appen.
+let fxAudio = RetroTrakkAudioEngine()
+fxAudio.setEchoMix(50)
+check(fxAudio.echoMix == 50, "Echo amount sticks without publishing")
+fxAudio.setEchoMix(200)
+check(fxAudio.echoMix == 100, "Echo amount clamps to 0...100")
+fxAudio.setCutoff(2000)
+check(fxAudio.cutoffHz == 2000, "Cutoff frequency sticks without publishing")
+fxAudio.setCutoff(99_999)
+check(fxAudio.cutoffHz == 20_000, "Cutoff clamps to 400...20000 Hz")
+fxAudio.setReverb(.hall)
+check(fxAudio.reverbPreset == .hall, "Reverb preset sticks without publishing")
 // Capture actual real-time audio while moving a future note during playback.
 audio.stopEngine()
 let liveAudio = audio

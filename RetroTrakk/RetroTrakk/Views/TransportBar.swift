@@ -105,6 +105,10 @@ struct TransportBar: View {
                     .toggleStyle(.checkbox)
             }
 
+            // Master-FX (echo/cutoff/effekt): syns när ett instrument är valt.
+            // Isolerad subvy med lokal @State — motorn publicerar aldrig.
+            MasterFXPanel()
+
             Spacer()
         }
         .padding(.horizontal, 14)
@@ -224,5 +228,79 @@ struct PatternIndicatorView: View {
         let orders = tracker.song.orders
         guard clock.orderPos >= 0, clock.orderPos < orders.count else { return "--" }
         return String(format: "%02d", orders[clock.orderPos])
+    }
+}
+
+// MARK: - Master-FX (Del 3: isolerad observation, Del 5: förvärmda noder)
+
+/// Enkla master-kontroller (echo/cutoff/effekt) höger om MIDI-input.
+/// Syns endast när ett instrument är valt. All state är lokal @State och
+/// motorns värden är vanliga (icke-publicerade) egenskaper — dragningar i
+/// sliders skriver direkt till AU-parametrar utan att invalidera en enda
+/// annan vy. Noderna skapas i motorns init; här flippas endast bypass/mix.
+struct MasterFXPanel: View {
+    @EnvironmentObject var tracker: TrackerEngine
+    @EnvironmentObject var audio: RetroTrakkAudioEngine
+    @State private var echo: Double = 0
+    @State private var cutoff: Double = 100
+    @State private var reverb: MasterFXReverb = .off
+
+    /// Exponentiell mappning 0...100 -> 400...20 000 Hz (musikalisk svepning).
+    private func cutoffHz(_ v: Double) -> Float {
+        Float(400 * pow(20_000.0 / 400.0, v / 100.0))
+    }
+
+    private var cutoffLabel: String {
+        let hz = cutoffHz(cutoff)
+        if hz >= 19_900 { return "Öppen" }
+        if hz >= 1000 { return String(format: "%.1fk", hz / 1000) }
+        return String(format: "%.0f", hz)
+    }
+
+    var body: some View {
+        if tracker.currentDefinition != nil {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Echo").font(.caption2).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Slider(value: $echo, in: 0...100)
+                            .frame(width: 90)
+                            .onChange(of: echo) { _, v in audio.setEchoMix(Float(v)) }
+                            .help("Ekomängd (master delay, 0.34 s)")
+                        Text("\(Int(echo))").font(.caption2).monospacedDigit()
+                            .frame(width: 22, alignment: .trailing)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Cutoff").font(.caption2).foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Slider(value: $cutoff, in: 0...100)
+                            .frame(width: 90)
+                            .onChange(of: cutoff) { _, v in audio.setCutoff(cutoffHz(v)) }
+                            .help("Master lågpassfilter (fullt öppet = bypass)")
+                        Text(cutoffLabel).font(.caption2).monospacedDigit()
+                            .frame(width: 38, alignment: .trailing)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Effekt").font(.caption2).foregroundStyle(.secondary)
+                    Picker("", selection: $reverb) {
+                        ForEach(MasterFXReverb.allCases) { preset in
+                            Text(preset.rawValue).tag(preset)
+                        }
+                    }
+                    .frame(width: 96)
+                    .onChange(of: reverb) { _, p in audio.setReverb(p) }
+                    .help("Master-reverb (bypassas vid Av)")
+                }
+            }
+            .onAppear {
+                echo = Double(audio.echoMix)
+                reverb = audio.reverbPreset
+                // Återsynk cutoff-slidern mot motorns Hz-värde.
+                let hz = max(400, audio.cutoffHz)
+                cutoff = 100 * log(Double(hz) / 400) / log(20_000.0 / 400.0)
+            }
+        }
     }
 }

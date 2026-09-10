@@ -6,6 +6,26 @@ import CoreVideo
 
 /// All graph and sequence edits occur on the main thread. Core Audio schedules
 /// the MIDI events independently of UI refreshes, in musical beats.
+public enum MasterFXReverb: String, CaseIterable, Identifiable, Sendable {
+    case off = "Av"
+    case room = "Rum"
+    case hall = "Hall"
+    case chamber = "Kammare"
+    case cathedral = "Katedral"
+
+    public var id: String { rawValue }
+
+    var avPreset: AVAudioUnitReverbPreset? {
+        switch self {
+        case .off: return nil
+        case .room: return .mediumRoom
+        case .hall: return .largeHall
+        case .chamber: return .largeChamber
+        case .cathedral: return .cathedral
+        }
+    }
+}
+
 public final class RetroTrakkAudioEngine: ObservableObject {
     @Published public var isRunning = false
     @Published public var statusText = "Motorn stoppad"
@@ -43,10 +63,43 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     private var auditionHeldNotes = Set<UInt8>()
     private var auditionConfigured = false
 
+    // MARK: - Master FX (top bar: echo, cutoff, effekt)
+    // Skapas EN gång i init (Del 5: aldrig nya noder under uppspelning).
+    // Tillståndet är medvetet INTE @Published — sliders skriver via metoderna
+    // nedan och panelen håller lokal @State, så dragningar aldrig invaliderar appen.
+    private let masterDelay = AVAudioUnitDelay()
+    private let masterReverb = AVAudioUnitReverb()
+    private let masterEQ = AVAudioUnitEQ(numberOfBands: 1)
+    public private(set) var echoMix: Float = 0
+    public private(set) var cutoffHz: Float = 20_000
+    public private(set) var reverbPreset: MasterFXReverb = .off
+
     public init() {
         engine.attach(master)
         master.outputVolume = 1
-        engine.connect(master, to: engine.mainMixerNode, format: nil)
+        engine.attach(masterDelay)
+        engine.attach(masterReverb)
+        engine.attach(masterEQ)
+        // Masterkedja: mix -> eko -> reverb -> lågpassfilter -> ut.
+        // Bypassade noder är rena genomgångar (försumbar CPU).
+        masterDelay.delayTime = 0.34
+        masterDelay.feedback = 35
+        masterDelay.lowPassCutoff = 15_000
+        masterDelay.wetDryMix = 0
+        masterDelay.bypass = true
+        masterReverb.loadFactoryPreset(.mediumHall)
+        masterReverb.wetDryMix = 25
+        masterReverb.bypass = true
+        if let band = masterEQ.bands.first {
+            band.filterType = .lowPass
+            band.frequency = 20_000
+            band.bandwidth = 0.5
+        }
+        masterEQ.bypass = true
+        engine.connect(master, to: masterDelay, format: nil)
+        engine.connect(masterDelay, to: masterReverb, format: nil)
+        engine.connect(masterReverb, to: masterEQ, format: nil)
+        engine.connect(masterEQ, to: engine.mainMixerNode, format: nil)
         for i in 0..<SongModel.channelCount {
             let mixer = AVAudioMixerNode()
             engine.attach(mixer)
@@ -444,6 +497,35 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     var playbackBeat: Double { sequencer.currentPositionInBeats }
     func setPlaybackTempo(_ bpm: Double) { sequencer.rate = Float(max(20, bpm) / sequenceTempo) }
+
+    // MARK: - Master FX setters (bypass flippas, grafen byggs aldrig om)
+
+    /// Ekomängd 0...100 %. Noll = bypassat delay (ingen CPU-kostnad att tala om).
+    public func setEchoMix(_ percent: Float) {
+        let clamped = min(100, max(0, percent))
+        echoMix = clamped
+        masterDelay.wetDryMix = clamped * 0.8
+        masterDelay.bypass = clamped <= 0.5
+    }
+
+    /// Lågpassfilter 400...20 000 Hz. Fullt öppet = bypassat EQ.
+    public func setCutoff(_ hz: Float) {
+        let clamped = min(20_000, max(400, hz))
+        cutoffHz = clamped
+        masterEQ.bands.first?.frequency = clamped
+        masterEQ.bypass = clamped >= 19_900
+    }
+
+    /// Master-reverb. Fabrikspreset laddas enbart vid användarbyte.
+    public func setReverb(_ preset: MasterFXReverb) {
+        reverbPreset = preset
+        if let av = preset.avPreset {
+            masterReverb.loadFactoryPreset(av)
+            masterReverb.bypass = false
+        } else {
+            masterReverb.bypass = true
+        }
+    }
 
     private func makeSurgeVoice(_ inst: InstrumentModel) throws -> SurgeVoiceNode {
         guard let path = inst.surgePatchPath, let patch = SurgePresetCatalog.patchURL(relativePath: path),
