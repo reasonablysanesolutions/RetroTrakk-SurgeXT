@@ -4,6 +4,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreVideo
 
 extension Notification.Name {
     static let retroFocusTracker = Notification.Name("retroFocusTracker")
@@ -30,11 +31,74 @@ public struct SelPoint: Hashable, Sendable {
     public init(_ row: Int, _ channel: Int) { self.row = row; self.channel = channel }
 }
 
+/// Lättviktsinspelad händelse för frikopplad live-inspelning (Del 2).
+/// Ljudet hörs omedelbart via preview, cellen buffras här och tidslinjen
+/// kompileras först vid loop/stop — aldrig synkront per anslag.
+public struct RecordedEvent: Sendable {
+    public let order: Int
+    public let row: Int
+    public let channel: Int
+    public let cell: TrackerCell
+    public init(order: Int, row: Int, channel: Int, cell: TrackerCell) {
+        self.order = order; self.row = row; self.channel = channel; self.cell = cell
+    }
+}
+
+/// Högfrekvent uppspelningsklocka (60/120 Hz). Endast spelhuvud + beat-LED
+/// observerar denna — ContentView, Sidebars och TrackerCellView gör det INTE.
+/// Detta bryter kaskadinvalideringen där varje sextondel tvingade hela
+/// appens vyträd att köras om.
+public final class PlaybackClock: ObservableObject {
+    @Published public var currentBeat: Double = 0
+    @Published public var currentRow: Int = 0
+    @Published public var orderPos: Int = 0
+    @Published public var isPlaying: Bool = false
+    @Published public var beatPhase: Int = 0
+
+    public init() {}
+
+    /// Tilldela endast vid faktisk ändring för att undvika onödiga publishes i 120 Hz.
+    public func sync(beat: Double, row: Int, order: Int, playing: Bool, phase: Int) {
+        if currentBeat != beat { currentBeat = beat }
+        if currentRow != row { currentRow = row }
+        if orderPos != order { orderPos = order }
+        if isPlaying != playing { isPlaying = playing }
+        if beatPhase != phase { beatPhase = phase }
+    }
+}
+
 public final class TrackerEngine: ObservableObject {
     @Published public var song = SongModel() { didSet { songChanged(from: oldValue) } }
-    @Published public var orderPos: Int = 0
-    @Published public var currentRow: Int = 0
-    @Published public var isPlaying: Bool = false
+    // MARK: - Tillståndsisolering (Del 3)
+    // Högfrekvent transporttillstånd bor i `clock` och observeras ENDAST av
+    // spelhuvud-overlay + beat-LED. Dessa speglade accessorer behåller det
+    // publika API:t (tester + logik läser/skriver tracker.isPlaying etc) men
+    // publicerar via clock — aldrig via TrackerEngine.objectWillChange.
+    // Därmed invalideras inte ContentView/Sidebars/Tracker-celler per rad.
+    public let clock = PlaybackClock()
+    public var orderPos: Int {
+        get { clock.orderPos }
+        set { if clock.orderPos != newValue { clock.orderPos = newValue } }
+    }
+    public var currentRow: Int {
+        get { clock.currentRow }
+        set { if clock.currentRow != newValue { clock.currentRow = newValue } }
+    }
+    public var isPlaying: Bool {
+        get { clock.isPlaying }
+        set { if clock.isPlaying != newValue { clock.isPlaying = newValue } }
+    }
+    public var beatPhase: Int {
+        get { clock.beatPhase }
+        set { if clock.beatPhase != newValue { clock.beatPhase = newValue } }
+    }
+    public var currentBeat: Double {
+        get { clock.currentBeat }
+        set { if clock.currentBeat != newValue { clock.currentBeat = newValue } }
+    }
+    /// Sant under pågående live-inspelning (transport rullar + Record på).
+    /// Medan denna är sann är automatisk sequencer-ombyggnad AVSTÄNGD (Del 2).
+    public var isLiveRecordingActive: Bool { isRecording && isPlaying }
     @Published public var isRecording: Bool = false {
         didSet {
             if oldValue && !isRecording { refreshDeferredRecordingPlayback() }
@@ -52,8 +116,6 @@ public final class TrackerEngine: ObservableObject {
     @Published public var stepSize: Int = 1
     @Published public var octave: Int = 4
     @Published public var quantize: Bool = true
-    /// Slagposition inom takten (0 = taktslag). Driver beat-LED i toolbaren.
-    @Published public var beatPhase: Int = 0
     /// Musmarkering: ankare + aktivt hörn. nil = ingen markering.
     @Published public var selAnchor: SelPoint? = nil
     @Published public var selCursor: SelPoint? = nil
@@ -81,6 +143,7 @@ public final class TrackerEngine: ObservableObject {
     public var midi: MIDIEngine?
 
     private var playheadTimer: Timer?
+    private var playheadDisplayLink: CVDisplayLink?
     private var playbackTimeline: PlaybackTimeline?
     /// A live key is always released on key-up. The generation also makes the
     /// short safety release harmless when the same MIDI key is retriggered.
@@ -91,6 +154,11 @@ public final class TrackerEngine: ObservableObject {
     /// Record is switched off (or until the next Play after Stop).
     private var recordingPlaybackNeedsRefresh = false
     private var deferredRecordingEventCount = 0
+    /// Frikopplad live-inspelningsbuffer (Del 2): celler skrivs direkt till
+    /// mönstret utan tidslinje-rebuild; tidslinjen kompileras samlat vid
+    /// loop/stop/Record-av i bakgrunden.
+    private var liveRecordBuffer: [RecordedEvent] = []
+    private let playbackRebuildQueue = DispatchQueue(label: "RetroTrakk.playbackRebuild", qos: .userInitiated)
 
     public init() {
         syncCurrentDefinitionWithChannel(0)
@@ -138,16 +206,13 @@ public final class TrackerEngine: ObservableObject {
             try audio.preparePlayback(song: song, timeline: timeline)
             try audio.startPlayback(at: start)
             playbackTimeline = timeline
-            orderPos = startOrder
-            currentRow = startRow
+            liveRecordBuffer.removeAll()
+            recordingPlaybackNeedsRefresh = false
+            deferredRecordingEventCount = 0
+            clock.sync(beat: start, row: startRow, order: startOrder, playing: true, phase: startRow % max(1, song.stepsPerBeat))
             cursorRow = startRow
-            isPlaying = true
             updatePlayhead()
-            let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-                self?.updatePlayhead()
-            }
-            RunLoop.main.add(timer, forMode: .common)
-            playheadTimer = timer
+            startPlayheadUpdates()
         } catch {
             audio.statusText = "Uppspelning misslyckades: \(error.localizedDescription)"
             stop()
@@ -155,13 +220,15 @@ public final class TrackerEngine: ObservableObject {
     }
 
     public func stop() {
-        playheadTimer?.invalidate()
-        playheadTimer = nil
+        stopPlayheadUpdates()
         audio?.stopPlayback()
-        isPlaying = false
+        clock.sync(beat: clock.currentBeat, row: cursorRow, order: clock.orderPos, playing: false, phase: clock.beatPhase)
         textureActive = false
         midiHeld.removeAll()
         activeNotes.removeAll()
+        // Stoppad transport bygger ändå ny tidslinje vid nästa Play, så ingen
+        // async rebuild behövs här — bara rensa bufferten.
+        liveRecordBuffer.removeAll()
         recordingPlaybackNeedsRefresh = false
         deferredRecordingEventCount = 0
         audio?.allNotesOff()
@@ -169,25 +236,91 @@ public final class TrackerEngine: ObservableObject {
         currentRow = cursorRow
     }
 
+    // MARK: - Display-synkroniserad playhead (Del 1/Flaskhals 5)
+
+    private func startPlayheadUpdates() {
+        stopPlayheadUpdates()
+        // Primärt: CVDisplayLink synkad mot skärmens VBLANK (60/120 Hz ProMotion).
+        // Fallback: 60 Hz RunLoop.main-timer (testmiljö/headless).
+        if startPlayheadDisplayLink() { return }
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.updatePlayhead()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        playheadTimer = timer
+    }
+
+    private func stopPlayheadUpdates() {
+        playheadTimer?.invalidate()
+        playheadTimer = nil
+        if let link = playheadDisplayLink {
+            CVDisplayLinkStop(link)
+            playheadDisplayLink = nil
+        }
+    }
+
+    private func startPlayheadDisplayLink() -> Bool {
+        var link: CVDisplayLink?
+        guard CVDisplayLinkCreateWithActiveCGDisplays(&link) == kCVReturnSuccess,
+              let created = link else { return false }
+        let callback: CVDisplayLinkOutputCallback = { (_, _, _, _, _, userInfo) -> CVReturn in
+            guard let userInfo else { return kCVReturnSuccess }
+            let engine = Unmanaged<TrackerEngine>.fromOpaque(userInfo).takeUnretainedValue()
+            DispatchQueue.main.async { [weak engine] in engine?.updatePlayhead() }
+            return kCVReturnSuccess
+        }
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        guard CVDisplayLinkSetOutputCallback(created, callback, selfPtr) == kCVReturnSuccess,
+              CVDisplayLinkStart(created) == kCVReturnSuccess else { return false }
+        playheadDisplayLink = created
+        return true
+    }
+
     private func updatePlayhead() {
         guard isPlaying, let timeline = playbackTimeline, let audio else { return }
-        guard let position = timeline.position(at: audio.playbackBeat) else {
+        let beat = audio.playbackBeat
+        guard let position = timeline.position(at: beat) else {
             loopPlayback()
             return
         }
-        if orderPos != position.order { orderPos = position.order }
-        if currentRow != position.row { currentRow = position.row }
         let phase = position.row % max(1, song.stepsPerBeat)
-        if beatPhase != phase { beatPhase = phase }
+        // Enda writers till clock under playback — granulärt, ingen TrackerEngine-publish.
+        clock.sync(beat: beat, row: position.row, order: position.order, playing: true, phase: phase)
     }
 
     private func loopPlayback() {
         guard isPlaying, let audio, playbackTimeline != nil else { return }
+        // Synkronisering vid loop (Del 2): inspelade noter hördes redan via
+        // preview; kompilera samlad tidslinje i bakgrunden och starta om.
+        if recordingPlaybackNeedsRefresh {
+            let capturedSong = song
+            let capturedCount = deferredRecordingEventCount
+            playbackRebuildQueue.async { [weak self] in
+                let fresh = PlaybackTimeline(song: capturedSong)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.isPlaying else { return }
+                    do {
+                        try audio.updatePlayback(song: capturedSong, timeline: fresh)
+                        self.playbackTimeline = fresh
+                        self.recordingPlaybackNeedsRefresh = false
+                        self.deferredRecordingEventCount = 0
+                        self.liveRecordBuffer.removeAll()
+                        self.clock.sync(beat: 0, row: 0, order: 0, playing: true, phase: 0)
+                        self.cursorRow = 0
+                        try audio.startPlayback(at: 0)
+                    } catch {
+                        self.stop()
+                    }
+                    if capturedCount > 0 {
+                        CrashDiagnostics.shared.record("Live recording: loop-compiled \(capturedCount) deferred events into timeline (\(fresh.notes.count) notes).")
+                    }
+                }
+            }
+            return
+        }
         do {
-            orderPos = 0
-            currentRow = 0
+            clock.sync(beat: 0, row: 0, order: 0, playing: true, phase: 0)
             cursorRow = 0
-            beatPhase = 0
             try audio.startPlayback(at: 0)
         } catch {
             stop()
@@ -205,7 +338,10 @@ public final class TrackerEngine: ObservableObject {
               old.stepsPerBeat != song.stepsPerBeat || old.instruments != song.instruments ||
               old.channelInstruments != song.channelInstruments
         guard needsPlaybackUpdate else { return }
-        if isRecording {
+        // Frikopplad live-inspelning (Del 2/Flaskhals 1): STÄNG AV automatisk
+        // sequencer-ombyggnad medan transporten rullar. Sekvensern spelar det
+        // som fanns vid Play; nya noter hörs redan via preview (0 ms latency).
+        if isLiveRecordingActive {
             recordingPlaybackNeedsRefresh = true
             deferredRecordingEventCount += 1
             if deferredRecordingEventCount == 1 {
@@ -219,9 +355,34 @@ public final class TrackerEngine: ObservableObject {
     private func refreshDeferredRecordingPlayback() {
         guard recordingPlaybackNeedsRefresh else { return }
         recordingPlaybackNeedsRefresh = false
+        let pendingCount = deferredRecordingEventCount
         deferredRecordingEventCount = 0
-        guard isPlaying, let audio else { return }
-        rebuildPlayback(audio: audio)
+        guard isPlaying, let audio else {
+            liveRecordBuffer.removeAll()
+            return
+        }
+        // Samlad ombyggnad asynkront: kompilera PlaybackTimeline i bakgrunden
+        // (ren struct, ingen Core Audio), applicera sedan på main.
+        let capturedSong = song
+        playbackRebuildQueue.async { [weak self] in
+            let fresh = PlaybackTimeline(song: capturedSong)
+            let started = ProcessInfo.processInfo.systemUptime
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                do {
+                    try audio.updatePlayback(song: capturedSong, timeline: fresh)
+                    self.playbackTimeline = fresh
+                    self.liveRecordBuffer.removeAll()
+                    let elapsed = ProcessInfo.processInfo.systemUptime - started
+                    if elapsed > 0.05 || pendingCount > 16 {
+                        CrashDiagnostics.shared.record(String(format: "Live recording: async rebuild %d events, %d notes in %.0f ms.", pendingCount, fresh.notes.count, elapsed * 1_000))
+                    }
+                } catch {
+                    audio.statusText = "Kunde inte uppdatera uppspelning: \(error.localizedDescription)"
+                    self.stop()
+                }
+            }
+        }
     }
 
     private func rebuildPlayback(audio: RetroTrakkAudioEngine) {
@@ -237,6 +398,25 @@ public final class TrackerEngine: ObservableObject {
         } catch {
             audio.statusText = "Kunde inte uppdatera uppspelning: \(error.localizedDescription)"
             stop()
+        }
+    }
+
+    /// Asynkron variant för tunga ombyggnader (många instrument/spår).
+    /// Tidslinjen kompileras off-main, appliceras sedan atomiskt på main.
+    private func rebuildPlaybackAsync(audio: RetroTrakkAudioEngine) {
+        let capturedSong = song
+        playbackRebuildQueue.async { [weak self] in
+            let timeline = PlaybackTimeline(song: capturedSong)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                do {
+                    try audio.updatePlayback(song: capturedSong, timeline: timeline)
+                    self.playbackTimeline = timeline
+                } catch {
+                    audio.statusText = "Kunde inte uppdatera uppspelning: \(error.localizedDescription)"
+                    self.stop()
+                }
+            }
         }
     }
 
@@ -507,6 +687,7 @@ public final class TrackerEngine: ObservableObject {
     private func recordLiveNoteOn(note: UInt8, velocity: UInt8) {
         guard let audio, let timeline = playbackTimeline,
               let position = timeline.position(at: audio.playbackBeat, nearest: quantize) else { return }
+        // Ljudet hanteras omedelbart via direkt MIDI Note-On (0 ms latency).
         if let inst = instrumentFor(channel: cursorChannel) {
             audio.previewOn(inst: inst, midiNote: note, velocity: velocity)
             liveNoteGeneration &+= 1
@@ -521,7 +702,12 @@ public final class TrackerEngine: ObservableObject {
                 self?.recordLiveNoteOff(note: note)
             }
         }
+        // Mönsteruppdatering UTAN tidslinje-rebuild (Del 2): skriv cellen direkt
+        // och buffra händelsen i minnet. songChanged() detekterar
+        // isLiveRecordingActive och skjuter upp sequencer-ombyggnaden till
+        // loop/stop/Record-av. Sekvensern spelar det som fanns vid Play.
         let cell = TrackerCell(note: note, instrument: instNumber(forChannel: cursorChannel), volume: vol64(velocity))
+        liveRecordBuffer.append(RecordedEvent(order: position.order, row: position.row, channel: cursorChannel, cell: cell))
         song.setCell(orderPos: position.order, row: position.row, channel: cursorChannel, cell: cell)
     }
 

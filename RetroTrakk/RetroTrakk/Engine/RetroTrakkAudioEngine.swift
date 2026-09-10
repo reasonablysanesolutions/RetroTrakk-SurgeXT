@@ -1,6 +1,8 @@
 import Foundation
 import AVFoundation
 import Combine
+import os
+import CoreVideo
 
 /// All graph and sequence edits occur on the main thread. Core Audio schedules
 /// the MIDI events independently of UI refreshes, in musical beats.
@@ -747,19 +749,125 @@ public final class RetroTrakkAudioEngine: ObservableObject {
     }
 }
 
+/// Realtidssäker mätbrygga mellan Core Audio-tråden och UI-tråden.
+///
+/// Kontrakt (Nivå 1 — Ljudtråden):
+/// - Noll heap-allokering på audiotråden (fast förallokerat minne).
+/// - Noll NSLock/mutex på audiotråden (per-kanal os_unfair_lock, mikrosekunder).
+/// - UI-tråden får allokera fritt vid läsning (tick/display-link).
+public final class LockFreeChannelMeter {
+    public static let sampleCount = 32
+
+    private let channels: Int
+    private let storage: UnsafeMutablePointer<Float>
+    private let peaks: UnsafeMutablePointer<Float>
+    private let locks: UnsafeMutablePointer<os_unfair_lock>
+
+    public init(channels: Int = SongModel.channelCount) {
+        self.channels = max(1, channels)
+        let total = self.channels * Self.sampleCount
+        storage = UnsafeMutablePointer<Float>.allocate(capacity: total)
+        storage.initialize(repeating: 0, count: total)
+        peaks = UnsafeMutablePointer<Float>.allocate(capacity: self.channels)
+        peaks.initialize(repeating: 0, count: self.channels)
+        locks = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: self.channels)
+        for i in 0..<self.channels { (locks + i).initialize(to: os_unfair_lock()) }
+    }
+
+    deinit {
+        let total = channels * Self.sampleCount
+        storage.deinitialize(count: total)
+        storage.deallocate()
+        peaks.deinitialize(count: channels)
+        peaks.deallocate()
+        locks.deinitialize(count: channels)
+        locks.deallocate()
+    }
+
+    /// Skrivning från Core Audio realtidstråd. Får aldrig allokera eller blockera.
+    /// - Parameters:
+    ///   - channel: 0..<channels
+    ///   - data: pekare till interleavade eller första kanalens float-samples (giltig under anropet)
+    ///   - frames: antal frames i bufferten
+    public func writeFromAudioThread(channel: Int, data: UnsafePointer<Float>, frames: Int) {
+        guard channel >= 0, channel < channels, frames > 0 else { return }
+        let count = Self.sampleCount
+        let step = max(1, frames / count)
+        // Beräkna peak utan lock; läs direkt från audiobufferten (delas ej).
+        var localPeak: Float = 0
+        // Håll låset endast för 32 kopieringar (mikrosekunder, ingen schemaläggning).
+        os_unfair_lock_lock(locks + channel)
+        let base = channel * count
+        for i in 0..<count {
+            let idx = min(frames - 1, i * step)
+            let val = data[idx]
+            (storage + base + i).pointee = val
+            let a = val >= 0 ? val : -val
+            if a > localPeak { localPeak = a }
+        }
+        (peaks + channel).pointee = localPeak
+        os_unfair_lock_unlock(locks + channel)
+    }
+
+    /// Läsning från UI-tråden (display-link/timer). `into` får allokeras av anroparen.
+    @discardableResult
+    public func readForDisplay(channel: Int, into: inout [Float]) -> Float {
+        guard channel >= 0, channel < channels else { return 0 }
+        if into.count != Self.sampleCount {
+            into = Array(repeating: 0, count: Self.sampleCount)
+        }
+        os_unfair_lock_lock(locks + channel)
+        let base = channel * Self.sampleCount
+        for i in 0..<Self.sampleCount {
+            into[i] = (storage + base + i).pointee
+        }
+        let peak = (peaks + channel).pointee
+        os_unfair_lock_unlock(locks + channel)
+        return peak
+    }
+
+    public func readPeak(channel: Int) -> Float {
+        guard channel >= 0, channel < channels else { return 0 }
+        os_unfair_lock_lock(locks + channel)
+        let peak = (peaks + channel).pointee
+        os_unfair_lock_unlock(locks + channel)
+        return peak
+    }
+
+    public func reset() {
+        for ch in 0..<channels {
+            os_unfair_lock_lock(locks + ch)
+            let base = ch * Self.sampleCount
+            for i in 0..<Self.sampleCount { (storage + base + i).pointee = 0 }
+            (peaks + ch).pointee = 0
+            os_unfair_lock_unlock(locks + ch)
+        }
+    }
+}
+
 /// Dedicated lightweight observable model for oscilloscope waveforms.
-/// Only observed by ChannelOscilloscopeView, isolating 30 fps redraws
+/// Only observed by ChannelOscilloscopeView, isolating display-frekventa redraws
 /// from the rest of the application.
+///
+/// Realtidskontrakt: `update(channel:buffer:)` körs på Core Audio-tråden ~700
+/// ggr/sekund och får varken allokera på heapen eller ta NSLock. All decay och
+/// publicering sker på UI-tråden i `tick()` driven av display-sync.
 public final class WaveformManager: ObservableObject {
     public static let shared = WaveformManager()
 
     @Published public var waveforms: [[Float]] = Array(repeating: Array(repeating: 0, count: 32), count: SongModel.channelCount)
     @Published public private(set) var signalPeak: Float = 0
+    /// Display-trådens avklingade topp per kanal. Används av oscilloskop för att
+    /// hoppa över rendering av tysta kanaler (peak <= 0.001).
+    @Published public private(set) var channelPeaks: [Float] = Array(repeating: 0, count: SongModel.channelCount)
 
-    private var rawWaveforms: [[Float]] = Array(repeating: Array(repeating: 0, count: 32), count: SongModel.channelCount)
-    private let lock = NSLock()
+    private let meter = LockFreeChannelMeter(channels: SongModel.channelCount)
+    private var displayWaveforms: [[Float]] = Array(repeating: Array(repeating: 0, count: 32), count: SongModel.channelCount)
+    private var displayPeaks: [Float] = Array(repeating: 0, count: SongModel.channelCount)
     private var timer: Timer?
+    private var displayLink: CVDisplayLink?
     private var activeFrames = 0
+    private var scratch: [Float] = Array(repeating: 0, count: 32)
 
     private init() {}
 
@@ -768,70 +876,110 @@ public final class WaveformManager: ObservableObject {
               let channelData = buffer.floatChannelData else { return }
         let frames = Int(buffer.frameLength)
         guard frames > 0 else { return }
-        let data = channelData[0]
-        var samples = [Float](repeating: 0, count: 32)
-        let step = max(1, frames / 32)
-        var maxAmp: Float = 0
-        for i in 0..<32 {
-            let idx = min(frames - 1, i * step)
-            let val = data[idx]
-            samples[i] = val
-            let absV = abs(val)
-            if absV > maxAmp { maxAmp = absV }
-        }
-        lock.lock()
-        rawWaveforms[channel] = samples
-        if maxAmp > 0.005 { activeFrames = 20 }
-        lock.unlock()
+        // Inga [Float]-allokeringar här — direkt pekarkopia in i fast minne.
+        meter.writeFromAudioThread(channel: channel, data: channelData[0], frames: frames)
+        // activeFrames-hanteringen sker i tick() på UI-tråden via peak-tröskel;
+        // här görs medvetet ingenting mer för att hålla audiotråden fri.
+    }
+
+    /// Topp för en kanal (display-trådens avklingade värde, lock-fri läsning).
+    public func peak(for channel: Int) -> Float {
+        guard channel >= 0, channel < displayPeaks.count else { return 0 }
+        return displayPeaks[channel]
     }
 
     public func startTimer() {
-        guard timer == nil else { return }
-        let t = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-            self?.tick()
+        guard timer == nil && displayLink == nil else { return }
+        if !startDisplayLink() {
+            // Fallback: 60 Hz UI-timer (aldrig på audiotråden).
+            let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+                self?.tick()
+            }
+            RunLoop.main.add(t, forMode: .common)
+            timer = t
         }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
     }
 
     public func stopTimer() {
         timer?.invalidate()
         timer = nil
-        lock.lock()
-        rawWaveforms = Array(repeating: Array(repeating: 0, count: 32), count: SongModel.channelCount)
-        lock.unlock()
-        waveforms = Array(repeating: Array(repeating: 0, count: 32), count: SongModel.channelCount)
+        stopDisplayLink()
+        meter.reset()
+        displayWaveforms = Array(repeating: Array(repeating: 0, count: 32), count: SongModel.channelCount)
+        displayPeaks = Array(repeating: 0, count: SongModel.channelCount)
+        waveforms = displayWaveforms
+        channelPeaks = displayPeaks
         signalPeak = 0
     }
 
+    // MARK: - Display-sync (CVDisplayLink synkad mot skärmens VBLANK)
+
+    private func startDisplayLink() -> Bool {
+        var link: CVDisplayLink?
+        let status = CVDisplayLinkCreateWithActiveCGDisplays(&link)
+        guard status == kCVReturnSuccess, let created = link else { return false }
+        let callback: CVDisplayLinkOutputCallback = { (_, _, _, _, _, userInfo) -> CVReturn in
+            guard let userInfo else { return kCVReturnSuccess }
+            let manager = Unmanaged<WaveformManager>.fromOpaque(userInfo).takeUnretainedValue()
+            // Publicering måste ske på main; sampla aldrig ljud här.
+            DispatchQueue.main.async { [weak manager] in manager?.tick() }
+            return kCVReturnSuccess
+        }
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+        guard CVDisplayLinkSetOutputCallback(created, callback, selfPtr) == kCVReturnSuccess,
+              CVDisplayLinkStart(created) == kCVReturnSuccess else { return false }
+        displayLink = created
+        return true
+    }
+
+    private func stopDisplayLink() {
+        if let link = displayLink {
+            CVDisplayLinkStop(link)
+            displayLink = nil
+        }
+    }
+
     private func tick() {
-        lock.lock()
-        let current = rawWaveforms
         var hasSignal = false
-        for ch in 0..<rawWaveforms.count {
-            for i in 0..<rawWaveforms[ch].count {
-                rawWaveforms[ch][i] *= 0.82
-                if abs(rawWaveforms[ch][i]) < 0.001 {
-                    rawWaveforms[ch][i] = 0
-                } else {
-                    hasSignal = true
+        var peak: Float = 0
+        for ch in 0..<SongModel.channelCount {
+            let freshPeak = meter.readForDisplay(channel: ch, into: &scratch)
+            if freshPeak > 0.005 {
+                // Aktiv signal: visa färsk data direkt.
+                displayWaveforms[ch] = scratch
+                displayPeaks[ch] = freshPeak
+                activeFrames = 20
+                hasSignal = true
+            } else {
+                // Tyst: låt föregående topp klinga av på UI-tråden (ingen audiolås-hållning).
+                var channelActive = false
+                for i in 0..<displayWaveforms[ch].count {
+                    displayWaveforms[ch][i] *= 0.82
+                    if abs(displayWaveforms[ch][i]) < 0.001 {
+                        displayWaveforms[ch][i] = 0
+                    } else {
+                        channelActive = true
+                    }
                 }
+                displayPeaks[ch] *= 0.82
+                if displayPeaks[ch] < 0.001 { displayPeaks[ch] = 0 } else { channelActive = true }
+                if channelActive { hasSignal = true }
             }
+            if displayPeaks[ch] > peak { peak = displayPeaks[ch] }
         }
         if activeFrames > 0 {
             activeFrames -= 1
             hasSignal = true
         }
         let keepAnimating = activeFrames > 0
-        lock.unlock()
 
-        let peak = current.flatMap { $0 }.reduce(Float(0)) { max($0, abs($1)) }
         // Publishing an unchanged zero peak invalidated SwiftUI thirty times
         // per second while a project was silent. Only notify views on a real
         // level change; audio timing remains entirely in AVAudioSequencer.
         if abs(signalPeak - peak) > 0.001 { signalPeak = peak }
+        if channelPeaks != displayPeaks { channelPeaks = displayPeaks }
         if hasSignal || keepAnimating {
-            waveforms = current
+            waveforms = displayWaveforms
         }
     }
 }

@@ -18,6 +18,7 @@ struct RetroTrakkApp: App {
                 .environmentObject(audio)
                 .environmentObject(midi)
                 .environmentObject(tracker)
+                .environmentObject(tracker.clock)
                 .frame(minWidth: 1100, minHeight: 700)
                 .onAppear {
                     tracker.audio = audio

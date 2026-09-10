@@ -104,17 +104,17 @@ struct ChannelPalette {
 
 struct TrackerView: View {
     @EnvironmentObject var tracker: TrackerEngine
+    @EnvironmentObject var clock: PlaybackClock
     @FocusState private var focused: Bool
     @State private var gridWidth: CGFloat = 800
     @State private var keyboardMonitor: Any?
+    /// Följ spelhuvudet under uppspelning (beat-kvantiserad, ingen per-16th scroll).
+    @State private var followPlayhead = true
+    @State private var lastFollowedRow = -1
 
     private var channelWidth: CGFloat {
         let available = max(CGFloat(SongModel.channelCount) * minChannelWidth, gridWidth - trackerGutterWidth)
         return available / CGFloat(SongModel.channelCount)
-    }
-
-    private var activeRow: Int {
-        tracker.isPlaying ? tracker.currentRow : tracker.cursorRow
     }
 
     var body: some View {
@@ -125,27 +125,57 @@ struct TrackerView: View {
                 .frame(height: 1)
             ScrollViewReader { proxy in
                 ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(0..<rowCount, id: \.self) { row in
-                            rowView(row)
-                                .id(row)
+                    ZStack(alignment: .topLeading) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(0..<rowCount, id: \.self) { row in
+                                rowView(row)
+                                    .id(row)
+                            }
                         }
+                        // Lagerseparerad playhead (Del 4): ett enda flytande element
+                        // som flyttas med GPU-transform (.offset), aldrig per-cell
+                        // isActiveRow. 120 FPS hårdvaruaccelererat.
+                        PlayheadOverlayView(rowHeight: trackerRowHeight)
                     }
                     .coordinateSpace(name: "trackerGrid")
                     .background(gridSizeReader)
                     .gesture(selectionDrag)
                 }
-                .onChange(of: tracker.currentRow) { _, newRow in
-                    if tracker.isPlaying {
+                // Throttled follow (Del 4/Flaskhals 3): ingen scrollTo per
+                // sextondel. Overlayn rör sig varje rad via offset; NSScrollView
+                // flyttas endast per beat (eller vid hopp) utan animering.
+                .onChange(of: clock.currentRow) { _, newRow in
+                    guard clock.isPlaying, followPlayhead else { return }
+                    let steps = max(1, tracker.song.stepsPerBeat)
+                    if lastFollowedRow < 0 || newRow < lastFollowedRow || abs(newRow - lastFollowedRow) >= steps {
+                        lastFollowedRow = newRow
                         proxy.scrollTo(newRow, anchor: .center)
                     }
                 }
                 .onChange(of: tracker.cursorRow) { _, newRow in
-                    if !tracker.isPlaying {
+                    if !clock.isPlaying {
+                        lastFollowedRow = -1
                         proxy.scrollTo(newRow, anchor: .center)
                     }
                 }
+                .onChange(of: clock.isPlaying) { _, playing in
+                    if playing {
+                        lastFollowedRow = clock.currentRow
+                        proxy.scrollTo(clock.currentRow, anchor: .center)
+                    }
+                }
             }
+            // Diskret follow-toggle under rutnätet (behåll fri scroll vid behov).
+            HStack(spacing: 6) {
+                Spacer()
+                Toggle("Följ spelhuvud", isOn: $followPlayhead)
+                    .font(.caption2)
+                    .toggleStyle(.checkbox)
+                    .help("Beat-kvantiserad följning. Av för helt fri scroll under uppspelning (playhead-overlay rör sig ändå i 120 FPS).")
+                    .padding(.trailing, 8)
+                    .padding(.vertical, 2)
+            }
+            .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
         }
         .background(Color(nsColor: .textBackgroundColor))
         .focusable()
@@ -240,15 +270,16 @@ struct TrackerView: View {
     }
 
     // MARK: - Mönsterrader (00–63)
+    // Cellerna beror ENDAST på song/cursor/selection (lågfrekvent) — aldrig på
+    // clock.currentRow (högfrekvent). Spelhuvudet är ett separat overlay-lager
+    // (PlayheadOverlayView) som flyttas med GPU-offset i 120 FPS.
 
-    // MARK: - Mönsterrader (00–63)
-
-    private func rowGutter(row: Int, isActiveRow: Bool, isFourth: Bool) -> some View {
+    private func rowGutter(row: Int, isCursorRow: Bool, isFourth: Bool) -> some View {
         Text(String(format: "%02d", row))
-            .font(.system(size: 11, weight: isActiveRow || isFourth ? .bold : .regular, design: .monospaced))
-            .foregroundStyle(isActiveRow ? .white : (isFourth ? Color.accentColor : .secondary))
+            .font(.system(size: 11, weight: isCursorRow || isFourth ? .bold : .regular, design: .monospaced))
+            .foregroundStyle(isCursorRow ? .white : (isFourth ? Color.accentColor : .secondary))
             .frame(width: trackerGutterWidth, height: trackerRowHeight)
-            .background(isActiveRow ? Color.accentColor : Color.clear)
+            .background(isCursorRow ? Color.accentColor.opacity(0.85) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 3))
     }
 
@@ -279,44 +310,30 @@ struct TrackerView: View {
         }
     }
 
-    private func rowBackground(isActiveRow: Bool, isBar: Bool, isFourth: Bool) -> Color {
-        if isActiveRow { return Color.accentColor.opacity(0.15) }
+    private func rowBackground(isBar: Bool, isFourth: Bool) -> Color {
         if isBar { return Color.primary.opacity(0.04) }
         if isFourth { return Color.primary.opacity(0.02) }
         return Color.clear
     }
 
     private func rowView(_ row: Int) -> some View {
-        let isActiveRow = row == activeRow
         // Radnumren visas nollbaserat (00, 01, …), men tracker-markeringarna
         // ska ligga på de musikaliska raderna 04, 08, 12, 16 — inte raden före.
         let isFourth = row > 0 && row % 4 == 0
         let isBar = row > 0 && row % 16 == 0
         let isLast = row == rowCount - 1
+        // Edit-cursor (lågfrekvent) — INTE playhead (högfrekvent, se overlay).
+        let isCursorRow = row == tracker.cursorRow
 
         return HStack(spacing: 0) {
-            rowGutter(row: row, isActiveRow: isActiveRow, isFourth: isFourth)
+            rowGutter(row: row, isCursorRow: isCursorRow, isFourth: isFourth)
 
             ForEach(0..<SongModel.channelCount, id: \.self) { ch in
                 rowCell(row: row, channel: ch, isLast: isLast)
             }
         }
         .frame(height: trackerRowHeight)
-        .background(rowBackground(isActiveRow: isActiveRow, isBar: isBar, isFourth: isFourth))
-        .overlay(alignment: .top) {
-            if isActiveRow {
-                Rectangle()
-                    .fill(Color.accentColor.opacity(0.85))
-                    .frame(height: 1.5)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if isActiveRow {
-                Rectangle()
-                    .fill(Color.accentColor.opacity(0.85))
-                    .frame(height: 1.5)
-            }
-        }
+        .background(rowBackground(isBar: isBar, isFourth: isFourth))
     }
 
     private func cellTapped(row: Int, channel: Int) {
@@ -431,6 +448,36 @@ struct TrackerView: View {
     }
 }
 
+// MARK: - Playhead Overlay (Del 4: 120 FPS lagerseparerad rendering)
+
+/// Översta lagret: EN tydlig accentrad som flyttas med ren GPU-transformering
+/// (.offset). Observerar ENDAST PlaybackClock (60/120 Hz) — aldrig SongDocument.
+/// Cellerna under (LazyVStack) ritas BARA om när noter ändras.
+struct PlayheadOverlayView: View {
+    @EnvironmentObject var clock: PlaybackClock
+    let rowHeight: CGFloat
+
+    var body: some View {
+        if clock.isPlaying {
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.85))
+                    .frame(height: 1.5)
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.15))
+                    .frame(height: rowHeight - 3)
+                Rectangle()
+                    .fill(Color.accentColor.opacity(0.85))
+                    .frame(height: 1.5)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: rowHeight)
+            .offset(y: CGFloat(clock.currentRow) * rowHeight)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
 // MARK: - Realtidsoscilloskop (Kanalwaveform + Snabb-Mute/Unmute)
 
 struct WaveformShape: Shape {
@@ -474,6 +521,11 @@ struct ChannelOscilloscopeView: View {
         return Array(repeating: 0, count: 32)
     }
 
+    /// Hoppa över rendering av tysta kanaler (Del 5): peak <= 0.001 ritas ej.
+    private var hasSignal: Bool {
+        isEnabled && waveformManager.peak(for: channel) > 0.001
+    }
+
     var body: some View {
         Button(action: onToggle) {
             ZStack {
@@ -486,12 +538,32 @@ struct ChannelOscilloscopeView: View {
                     .fill(Color.white.opacity(isEnabled ? 0.08 : 0.02))
                     .frame(height: 1)
 
-                // Vågformsritning via Shape (ingen GeometryReader)
-                WaveformShape(points: isEnabled ? currentWaveform : Array(repeating: 0, count: 32))
-                    .stroke(
-                        isEnabled ? color : color.opacity(0.20),
-                        style: StrokeStyle(lineWidth: isEnabled ? 1.8 : 1.0, lineCap: .round, lineJoin: .round)
-                    )
+                // Vågformsritning via Canvas (Metal-backad, Del 5) — ingen
+                // SwiftUI-vyhierarki per punkt, ingen GeometryReader.
+                Canvas { context, size in
+                    guard isEnabled else { return }
+                    let points = hasSignal ? currentWaveform : Array(repeating: Float(0), count: 32)
+                    guard points.count > 1 else { return }
+                    // Tysta kanaler: rita endast baslinje (billigt, ingen stroke).
+                    if !hasSignal { return }
+                    var path = Path()
+                    let w = size.width
+                    let h = size.height
+                    let midY = h / 2.0
+                    let dx = w / CGFloat(points.count - 1)
+                    let amp = h * 0.42
+                    for i in 0..<points.count {
+                        let x = CGFloat(i) * dx
+                        let val = CGFloat(max(-1.0, min(1.0, points[i])))
+                        let y = midY - (val * amp)
+                        if i == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                    context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
+                }
 
                 // Diskret statusindikator uppe till höger: ● ON / ○ OFF
                 VStack {

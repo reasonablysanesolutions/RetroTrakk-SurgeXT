@@ -157,9 +157,7 @@ struct ContentView: View {
 // MARK: - Statusrad
 
 struct StatusBar: View {
-    @EnvironmentObject var tracker: TrackerEngine
     @EnvironmentObject var midi: MIDIEngine
-    @ObservedObject private var waveform = WaveformManager.shared
     @EnvironmentObject var audio: RetroTrakkAudioEngine
     let message: String
 
@@ -182,18 +180,31 @@ struct StatusBar: View {
             Label(midi.isConnected ? (midi.sources[safe: midi.selectedSource ?? -1] ?? "MIDI") : "Ingen MIDI",
                   systemImage: midi.isConnected ? "pianokeys" : "pianokeys.inverse")
                 .font(.caption).foregroundStyle(.secondary)
-            if tracker.isPlaying {
-                Label(waveform.signalPeak > 0.001 ? String(format: "Signal %.3f", waveform.signalPeak) : "Ingen patternsignal",
-                      systemImage: waveform.signalPeak > 0.001 ? "waveform" : "speaker.slash")
-                    .font(.caption)
-                    .foregroundStyle(waveform.signalPeak > 0.001 ? Color.green : Color.red)
-            }
+            // Signalindikatorn observerar clock+waveform isolerat (Del 3) —
+            // resten av statusraden påverkas inte av 60/120 Hz ticks.
+            SignalIndicatorView()
             Label(audio.statusText, systemImage: "speaker.wave.2")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+/// Isolerad signalindikator (Del 3/WaveformStore): endast denna subvy
+/// observerar clock + WaveformManager. Tyst projekt publicerar aldrig.
+struct SignalIndicatorView: View {
+    @EnvironmentObject var clock: PlaybackClock
+    @ObservedObject private var waveform = WaveformManager.shared
+
+    var body: some View {
+        if clock.isPlaying {
+            Label(waveform.signalPeak > 0.001 ? String(format: "Signal %.3f", waveform.signalPeak) : "Ingen patternsignal",
+                  systemImage: waveform.signalPeak > 0.001 ? "waveform" : "speaker.slash")
+                .font(.caption)
+                .foregroundStyle(waveform.signalPeak > 0.001 ? Color.green : Color.red)
+        }
     }
 }
 

@@ -442,6 +442,7 @@ struct OrderSidebar: View {
 
 struct OrderRowView: View {
     @EnvironmentObject var tracker: TrackerEngine
+    @EnvironmentObject var clock: PlaybackClock
     let pos: Int
     @State private var renaming = false
     @State private var draft = ""
@@ -464,13 +465,13 @@ struct OrderRowView: View {
                     Text(rowName()).font(.body).lineLimit(1)
                 }
                 Spacer()
-                if pos == tracker.orderPos {
+                if pos == clock.orderPos {
                     Image(systemName: "play.fill").font(.caption).foregroundStyle(Color.accentColor)
                 }
             }
             .padding(.vertical, 3)
             .padding(.horizontal, 6)
-            .background(pos == tracker.orderPos ? Color.accentColor.opacity(0.14) : Color.clear)
+            .background(pos == clock.orderPos ? Color.accentColor.opacity(0.14) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)

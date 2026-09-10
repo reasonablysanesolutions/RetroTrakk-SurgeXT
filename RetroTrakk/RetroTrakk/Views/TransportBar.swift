@@ -13,30 +13,10 @@ struct TransportBar: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // Transport
-            HStack(spacing: 8) {
-                transportButton(
-                    title: "Record", icon: "circle.fill",
-                    color: tracker.isRecording ? .red : .secondary,
-                    active: tracker.isRecording
-                ) {
-                    tracker.isRecording.toggle()
-                    if tracker.isRecording && !tracker.isPlaying { tracker.play() }
-                    statusMessage = tracker.isRecording ? "Spelar in — spela på MIDI-keyboard eller Mac-tangenter." : "Inspelning av."
-                }
-                transportButton(title: tracker.isPlaying ? "Stop" : "Play",
-                                icon: tracker.isPlaying ? "stop.fill" : "play.fill",
-                                color: .accentColor, active: tracker.isPlaying) {
-                    tracker.togglePlay(fromStart: !tracker.isPlaying)
-                    statusMessage = tracker.audio?.statusText ?? (tracker.isPlaying ? "Spelar…" : "Stoppad.")
-                }
-                transportButton(title: "Edit", icon: "pencil",
-                                color: tracker.editMode ? .orange : .secondary,
-                                active: tracker.editMode) {
-                    tracker.editMode.toggle()
-                }
-            }
-
+            // Transport: granulära subvyer observerar clock/tracker separat.
+            // Denna förälder observerar ENDAST tracker+midi (lågfrekvent) —
+            // aldrig clock (60/120 Hz). Se TransportButtonsView/BeatIndicatorView.
+            TransportButtonsView(statusMessage: $statusMessage)
             Divider().frame(height: 28)
 
             // BPM / Steps / Pattern
@@ -80,8 +60,7 @@ struct TransportBar: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Pattern").font(.caption2).foregroundStyle(.secondary)
-                    Text(tracker.currentPatternID.map { String(format: "%02d", $0) } ?? "--")
-                        .font(.title3).bold().monospacedDigit()
+                    PatternIndicatorView()
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Oktav").font(.caption2).foregroundStyle(.secondary)
@@ -94,10 +73,7 @@ struct TransportBar: View {
                 }
                 VStack(alignment: .center, spacing: 2) {
                     Text("Beat").font(.caption2).foregroundStyle(.secondary)
-                    Circle()
-                        .fill(tracker.isPlaying && tracker.beatPhase == 0 ? Color.green : Color.gray.opacity(0.25))
-                        .frame(width: 14, height: 14)
-                        .padding(.top, 5)
+                    BeatIndicatorView()
                 }
                 .help("Blinkar på varje taktslag — visar att tempot följer BPM")
             }
@@ -163,5 +139,90 @@ struct TransportBar: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             Text(title).font(.caption2).foregroundStyle(.secondary)
         }
+    }
+}
+
+// MARK: - Granulära transportsubvyer (Del 3: isolerad observation)
+
+// Endast transportknapparna observerar clock.isPlaying — resten av
+// TransportBar (BPM/Step/MIDI) påverkas inte av 60/120 Hz playhead-ticks.
+struct TransportButtonsView: View {
+    @EnvironmentObject var tracker: TrackerEngine
+    @EnvironmentObject var clock: PlaybackClock
+    @Binding var statusMessage: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: {
+                tracker.isRecording.toggle()
+                if tracker.isRecording && !clock.isPlaying { tracker.play() }
+                statusMessage = tracker.isRecording ? "Spelar in — spela på MIDI-keyboard eller Mac-tangenter." : "Inspelning av."
+            }) {
+                transportLabel(title: "Record", icon: "circle.fill",
+                               color: tracker.isRecording ? .red : .secondary,
+                               active: tracker.isRecording)
+            }
+            .buttonStyle(.plain)
+            Button(action: {
+                let wasPlaying = clock.isPlaying
+                tracker.togglePlay(fromStart: !wasPlaying)
+                statusMessage = tracker.audio?.statusText ?? (clock.isPlaying ? "Spelar…" : "Stoppad.")
+            }) {
+                transportLabel(title: clock.isPlaying ? "Stop" : "Play",
+                               icon: clock.isPlaying ? "stop.fill" : "play.fill",
+                               color: .accentColor, active: clock.isPlaying)
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.space, modifiers: [])
+            Button(action: { tracker.editMode.toggle() }) {
+                transportLabel(title: "Edit", icon: "pencil",
+                               color: tracker.editMode ? .orange : .secondary,
+                               active: tracker.editMode)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func transportLabel(title: String, icon: String, color: Color, active: Bool) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(color)
+                .frame(width: 34, height: 30)
+                .background(active ? color.opacity(0.14) : Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            Text(title).font(.caption2).foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// Beat-lysdioden observerar ENDAST clock (isPlaying + beatPhase).
+/// Hela TransportBar körs därmed inte om per sextondel.
+struct BeatIndicatorView: View {
+    @EnvironmentObject var clock: PlaybackClock
+
+    var body: some View {
+        Circle()
+            .fill(clock.isPlaying && clock.beatPhase == 0 ? Color.green : Color.gray.opacity(0.25))
+            .frame(width: 14, height: 14)
+            .padding(.top, 5)
+    }
+}
+
+/// Mönsterindikatorn observerar order (lågfrekvent: byter endast per pattern).
+/// Föräldern TransportBar påverkas därmed inte av per-rad ticks.
+struct PatternIndicatorView: View {
+    @EnvironmentObject var tracker: TrackerEngine
+    @EnvironmentObject var clock: PlaybackClock
+
+    var body: some View {
+        Text(patternText)
+            .font(.title3).bold().monospacedDigit()
+    }
+
+    private var patternText: String {
+        let orders = tracker.song.orders
+        guard clock.orderPos >= 0, clock.orderPos < orders.count else { return "--" }
+        return String(format: "%02d", orders[clock.orderPos])
     }
 }
