@@ -365,6 +365,16 @@ if let firstUser = userPresets.first {
 }
 check(InstrumentCatalog.all.allSatisfy { $0.sourceType == .surge }, "User presets are Surge XT sounds like the factory catalog")
 
+// Surge XT:s medföljande tredjepartsbank (37 författare via Vendor-submodulen,
+// refererad — ej kopierad — så github-paketet inte sväller).
+let thirdPartyPresets = InstrumentCatalog.all.filter { $0.id.hasPrefix("surge3rd/") }
+check(!thirdPartyPresets.isEmpty, "Surge XT third-party bank loads")
+check(thirdPartyPresets.count > 2000, "Third-party bank contributes the bulk of the presets")
+check(InstrumentCatalog.all.count > 2800, "Catalog holds 2800+ Surge XT presets")
+if let firstThirdParty = thirdPartyPresets.first {
+    check(SurgePresetCatalog.patchURL(relativePath: firstThirdParty.sourceIdentifier) != nil, "Third-party preset path resolves to disk")
+}
+
 // 8. JGX Project File Format (.jgx) Tests
 print("--- Starting JGX Project Format (.jgx) Tests ---")
 let jgxURL = dir.appendingPathComponent("test-project.jgx")
