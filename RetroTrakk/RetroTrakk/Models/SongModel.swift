@@ -225,6 +225,18 @@ public struct SongModel: Codable, Sendable {
         patterns[idx][row, channel] = cell
     }
 
+    /// Batch-skrivning: EN mutation för ett helt block (paste/cut/move/clear).
+    /// Per-cell `setCell` i loop skulle publicera + rita om hela appen per cell
+    /// (512 renders för en full pattern-paste) — här blir det exakt en.
+    public mutating func setCells(_ updates: [(orderPos: Int, row: Int, channel: Int, cell: TrackerCell)]) {
+        for u in updates {
+            guard u.orderPos >= 0, u.orderPos < orders.count else { continue }
+            let pid = orders[u.orderPos]
+            guard let idx = patterns.firstIndex(where: { $0.id == pid }) else { continue }
+            patterns[idx][u.row, u.channel] = u.cell
+        }
+    }
+
     public func getCell(orderPos: Int, row: Int, channel: Int) -> TrackerCell {
         guard orderPos >= 0, orderPos < orders.count else { return .empty }
         let pid = orders[orderPos]

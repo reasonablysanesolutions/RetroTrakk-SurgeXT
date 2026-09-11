@@ -101,7 +101,8 @@ struct InstrumentBrowser: View {
         let inst = InstrumentModel(id: newID, name: String(format: "%02d %@", newID + 1, au.name),
                                    kind: kind, auName: au.name, auManufacturer: au.manufacturer)
         tracker.song.instruments.append(inst)
-        audio.ensureInstrument(inst)
+        // Stega asynkront — panelen stängs direkt utan att vänta på AU-init.
+        audio.ensureInstrumentAsync(inst) { _ in }
         dismiss()
     }
 
@@ -111,8 +112,7 @@ struct InstrumentBrowser: View {
                                    name: String(format: "%02d %@", newID + 1, url.deletingPathExtension().lastPathComponent),
                                    kind: .sample, samplePath: url.path)
         tracker.song.instruments.append(inst)
-        // Se till att noden finns, ladda sedan filen
-        _ = audio.ensureInstrument(inst)
+        // Samplet stegar asynkront i loadSample — panelen stängs direkt.
         audio.loadSample(into: inst, url: url)
         dismiss()
     }

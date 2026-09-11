@@ -49,7 +49,10 @@ public struct RecordedEvent: Sendable {
 /// Detta bryter kaskadinvalideringen där varje sextondel tvingade hela
 /// appens vyträd att köras om.
 public final class PlaybackClock: ObservableObject {
-    @Published public var currentBeat: Double = 0
+    /// Rå beatposition — medvetet INTE @Published. Ingen vy läser den och den
+    /// ändras varje display-tick; publicering här skulle tvinga alla
+    /// clock-observatörer att ritas om i 120 Hz helt i onödan.
+    public var currentBeat: Double = 0
     @Published public var currentRow: Int = 0
     @Published public var orderPos: Int = 0
     @Published public var isPlaying: Bool = false
@@ -801,9 +804,12 @@ public final class TrackerEngine: ObservableObject {
     }
 
     public func clearRect(_ r: (Int, Int, Int, Int)) {
+        var updates: [(orderPos: Int, row: Int, channel: Int, cell: TrackerCell)] = []
+        updates.reserveCapacity((r.2 - r.0 + 1) * (r.3 - r.1 + 1))
         for row in r.0...r.2 {
-            for ch in r.1...r.3 { setCell(row: row, channel: ch, cell: .empty) }
+            for ch in r.1...r.3 { updates.append((orderPos, row, ch, .empty)) }
         }
+        song.setCells(updates)
     }
 
     public func cutSelection() {
@@ -826,14 +832,17 @@ public final class TrackerEngine: ObservableObject {
               let pattern = song.patterns.first(where: { $0.id == pid }) else { return }
         let baseRow = targetRow ?? cursorRow
         let baseChannel = targetChannel ?? cursorChannel
+        var updates: [(orderPos: Int, row: Int, channel: Int, cell: TrackerCell)] = []
+        updates.reserveCapacity(block.count * (block.first?.count ?? 0))
         for (dr, line) in block.enumerated() {
             for (dc, cell) in line.enumerated() {
                 let row = baseRow + dr, ch = baseChannel + dc
                 if row < pattern.rowCount && ch < SongModel.channelCount {
-                    setCell(row: row, channel: ch, cell: cell)
+                    updates.append((orderPos, row, ch, cell))
                 }
             }
         }
+        song.setCells(updates)
         cursorRow = min(pattern.rowCount - 1, baseRow)
         cursorChannel = min(SongModel.channelCount - 1, baseChannel)
     }
@@ -853,10 +862,13 @@ public final class TrackerEngine: ObservableObject {
             block.append(line)
         }
 
+        // EN batch-skrivning för både rensning och placering (en publicering).
+        var updates: [(orderPos: Int, row: Int, channel: Int, cell: TrackerCell)] = []
+        updates.reserveCapacity(block.count * (block.first?.count ?? 0) * 2)
         if !copy {
             for row in rect.0...rect.2 {
                 for ch in rect.1...rect.3 {
-                    setCell(row: row, channel: ch, cell: .empty)
+                    updates.append((orderPos, row, ch, .empty))
                 }
             }
         }
@@ -865,10 +877,11 @@ public final class TrackerEngine: ObservableObject {
             for (dc, cell) in line.enumerated() {
                 let row = targetRow + dr, ch = targetChannel + dc
                 if row < pattern.rowCount && ch < SongModel.channelCount {
-                    setCell(row: row, channel: ch, cell: cell)
+                    updates.append((orderPos, row, ch, cell))
                 }
             }
         }
+        song.setCells(updates)
 
         let height = rect.2 - rect.0
         let width = rect.3 - rect.1
@@ -969,8 +982,8 @@ public final class TrackerEngine: ObservableObject {
 
         // Surge patches are staged when transport/preview explicitly asks for
         // audio. Selecting from the large factory list must stay instant.
+        // Samplers stegar asynkront via previewOn — klicket blockeras aldrig.
         if inst.kind != .surge {
-            _ = audio?.ensureInstrument(inst)
             let triggerNote: UInt8 = def.isDrumKit ? 36 : 60
             previewOn(channel: ch, note: triggerNote, velocity: 100, autoOff: true)
         }
@@ -981,10 +994,10 @@ public final class TrackerEngine: ObservableObject {
         song.channelInstruments[ch] = instrumentId
         resetComputerKeyboardChord()
         if let iid = instrumentId,
-           let instIdx = song.instruments.firstIndex(where: { $0.id == iid }) {
-            _ = audio?.ensureInstrument(song.instruments[instIdx])
+           song.instruments.contains(where: { $0.id == iid }) {
             syncCurrentDefinitionWithChannel(ch)
             NotificationCenter.default.post(name: .retroFocusTracker, object: nil)
+            // previewOn stegar noden asynkront vid miss — inget sync-block här.
             previewOn(channel: ch, note: 60, velocity: 100, autoOff: true)
         }
     }
@@ -1014,7 +1027,11 @@ public final class TrackerEngine: ObservableObject {
         }
         if path != nil {
             audio?.prepareSample(inst) { success in if success { apply() } }
-        } else if audio?.ensureInstrument(inst) != nil { apply() }
+        } else {
+            audio?.ensureInstrumentAsync(inst) { [weak self] node in
+                if node != nil { apply() }
+            }
+        }
     }
 
     // MARK: - Pattern/order-hantering
@@ -1110,9 +1127,9 @@ public final class TrackerEngine: ObservableObject {
         selAnchor = nil
         selCursor = nil
         syncCurrentDefinitionWithChannel(0)
-        if let audio {
-            for inst in song.instruments { _ = audio.ensureInstrument(inst) }
-        }
+        // Stega projektets instrument i bakgrunden — filöppning ska aldrig
+        // hänga på disk-IO/Surge-laddning på main.
+        audio?.prewarm(song: song)
     }
 
     public func saveProject(to url: URL) throws {

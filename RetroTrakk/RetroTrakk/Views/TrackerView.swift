@@ -219,13 +219,24 @@ struct TrackerView: View {
         DragGesture(minimumDistance: 4, coordinateSpace: .named("trackerGrid"))
             .onChanged { value in
                 guard let hit = hitTest(value.location) else { return }
+                let point = SelPoint(hit.row, hit.channel)
                 if !tracker.dragActive {
-                    tracker.selAnchor = SelPoint(hit.row, hit.channel)
                     tracker.dragActive = true
+                    tracker.selAnchor = point
                 }
-                tracker.selCursor = SelPoint(hit.row, hit.channel)
-                tracker.cursorRow = hit.row
-                tracker.cursorChannel = hit.channel
+                // Koalescera: musen ger hundratals events/sekund, ofta inom
+                // samma cell. @Published skickar även vid identiskt värde, så
+                // publicera ENDAST vid faktisk cellväxling — annars tvingas
+                // hela appens vyträd att ritas om i musens takt helt i onödan.
+                if tracker.selCursor != point {
+                    tracker.selCursor = point
+                }
+                if tracker.cursorRow != hit.row {
+                    tracker.cursorRow = hit.row
+                }
+                if tracker.cursorChannel != hit.channel {
+                    tracker.cursorChannel = hit.channel
+                }
             }
             .onEnded { _ in
                 tracker.dragActive = false
@@ -273,67 +284,29 @@ struct TrackerView: View {
     // Cellerna beror ENDAST på song/cursor/selection (lågfrekvent) — aldrig på
     // clock.currentRow (högfrekvent). Spelhuvudet är ett separat overlay-lager
     // (PlayheadOverlayView) som flyttas med GPU-offset i 120 FPS.
-
-    private func rowGutter(row: Int, isCursorRow: Bool, isFourth: Bool) -> some View {
-        Text(String(format: "%02d", row))
-            .font(.system(size: 11, weight: isCursorRow || isFourth ? .bold : .regular, design: .monospaced))
-            .foregroundStyle(isCursorRow ? .white : (isFourth ? Color.accentColor : .secondary))
-            .frame(width: trackerGutterWidth, height: trackerRowHeight)
-            .background(isCursorRow ? Color.accentColor.opacity(0.85) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-
-    private func rowCell(row: Int, channel: Int, isLast: Bool) -> some View {
-        TrackerCellView(
-            tracker: tracker,
-            row: row,
-            channel: channel,
-            cell: tracker.getCell(row: row, channel: channel),
-            enabled: tracker.song.channelEnabled[channel],
-            isCursor: row == tracker.cursorRow && channel == tracker.cursorChannel,
-            selected: tracker.isSelected(row: row, channel: channel),
-            isTopEdge: tracker.isSelectionTopEdge(row: row, channel: channel),
-            isBottomEdge: tracker.isSelectionBottomEdge(row: row, channel: channel),
-            isLeadingEdge: tracker.isSelectionLeadingEdge(row: row, channel: channel),
-            isTrailingEdge: tracker.isSelectionTrailingEdge(row: row, channel: channel),
-            isActiveChannel: channel == tracker.cursorChannel,
-            palette: ChannelPalette.color(for: channel),
-            isLastRow: isLast,
-            onTap: { cellTapped(row: row, channel: channel) }
-        )
-        .equatable()
-        .frame(width: channelWidth, height: trackerRowHeight)
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(Color(nsColor: .separatorColor).opacity(0.8))
-                .frame(width: 1)
-        }
-    }
-
-    private func rowBackground(isBar: Bool, isFourth: Bool) -> Color {
-        if isBar { return Color.primary.opacity(0.04) }
-        if isFourth { return Color.primary.opacity(0.02) }
-        return Color.clear
-    }
+    // Varje rad är en TrackerRowView (Equatable): vid en notinmatning ritas EN
+    // rad om i stället för att diffra 64 rader × 8 celler.
 
     private func rowView(_ row: Int) -> some View {
-        // Radnumren visas nollbaserat (00, 01, …), men tracker-markeringarna
-        // ska ligga på de musikaliska raderna 04, 08, 12, 16 — inte raden före.
-        let isFourth = row > 0 && row % 4 == 0
-        let isBar = row > 0 && row % 16 == 0
-        let isLast = row == rowCount - 1
-        // Edit-cursor (lågfrekvent) — INTE playhead (högfrekvent, se overlay).
-        let isCursorRow = row == tracker.cursorRow
-
-        return HStack(spacing: 0) {
-            rowGutter(row: row, isCursorRow: isCursorRow, isFourth: isFourth)
-
-            ForEach(0..<SongModel.channelCount, id: \.self) { ch in
-                rowCell(row: row, channel: ch, isLast: isLast)
-            }
+        var cells: [TrackerCell] = []
+        cells.reserveCapacity(SongModel.channelCount)
+        for ch in 0..<SongModel.channelCount {
+            cells.append(tracker.getCell(row: row, channel: ch))
         }
-        .frame(height: trackerRowHeight)
-        .background(rowBackground(isBar: isBar, isFourth: isFourth))
+        return TrackerRowView(
+            tracker: tracker,
+            row: row,
+            cells: cells,
+            channelEnabled: tracker.song.channelEnabled,
+            isCursorRow: row == tracker.cursorRow,
+            cursorChannel: tracker.cursorChannel,
+            selAnchor: tracker.selAnchor,
+            selCursor: tracker.selCursor,
+            channelWidth: channelWidth,
+            isLastRow: row == rowCount - 1,
+            onTap: { r, c in cellTapped(row: r, channel: c) }
+        )
+        .equatable()
     }
 
     private func cellTapped(row: Int, channel: Int) {
@@ -445,6 +418,82 @@ struct TrackerView: View {
     private func isEditingText() -> Bool {
         guard let responder = NSApp.keyWindow?.firstResponder else { return false }
         return responder is NSTextView || responder is NSTextField
+    }
+}
+
+// MARK: - TrackerRowView (granulär diffning per rad)
+
+/// En tracker-rad som värde. `tracker` och `onTap` används endast i body och
+/// deltar medvetet inte i jämförelsen — SwiftUI hoppar över raden helt när
+/// ingen av dess celler, cursor- eller markeringsflaggor ändrats.
+struct TrackerRowView: View, Equatable {
+    let tracker: TrackerEngine
+    let row: Int
+    let cells: [TrackerCell]
+    let channelEnabled: [Bool]
+    let isCursorRow: Bool
+    let cursorChannel: Int
+    let selAnchor: SelPoint?
+    let selCursor: SelPoint?
+    let channelWidth: CGFloat
+    let isLastRow: Bool
+    let onTap: (Int, Int) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.row == rhs.row && lhs.cells == rhs.cells &&
+        lhs.channelEnabled == rhs.channelEnabled &&
+        lhs.isCursorRow == rhs.isCursorRow &&
+        lhs.cursorChannel == rhs.cursorChannel &&
+        lhs.selAnchor == rhs.selAnchor && lhs.selCursor == rhs.selCursor &&
+        lhs.channelWidth == rhs.channelWidth &&
+        lhs.isLastRow == rhs.isLastRow
+    }
+
+    var body: some View {
+        // Radnumren visas nollbaserat (00, 01, …), men tracker-markeringarna
+        // ska ligga på de musikaliska raderna 04, 08, 12, 16 — inte raden före.
+        let isFourth = row > 0 && row % 4 == 0
+        let isBar = row > 0 && row % 16 == 0
+        return HStack(spacing: 0) {
+            Text(String(format: "%02d", row))
+                .font(.system(size: 11, weight: isCursorRow || isFourth ? .bold : .regular, design: .monospaced))
+                .foregroundStyle(isCursorRow ? .white : (isFourth ? Color.accentColor : .secondary))
+                .frame(width: trackerGutterWidth, height: trackerRowHeight)
+                .background(isCursorRow ? Color.accentColor.opacity(0.85) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+
+            ForEach(0..<SongModel.channelCount, id: \.self) { ch in
+                TrackerCellView(
+                    tracker: tracker,
+                    row: row,
+                    channel: ch,
+                    cell: ch < cells.count ? cells[ch] : .empty,
+                    enabled: ch < channelEnabled.count ? channelEnabled[ch] : true,
+                    isCursor: isCursorRow && ch == cursorChannel,
+                    selected: tracker.isSelected(row: row, channel: ch),
+                    isTopEdge: tracker.isSelectionTopEdge(row: row, channel: ch),
+                    isBottomEdge: tracker.isSelectionBottomEdge(row: row, channel: ch),
+                    isLeadingEdge: tracker.isSelectionLeadingEdge(row: row, channel: ch),
+                    isTrailingEdge: tracker.isSelectionTrailingEdge(row: row, channel: ch),
+                    isActiveChannel: ch == cursorChannel,
+                    palette: ChannelPalette.color(for: ch),
+                    isLastRow: isLastRow,
+                    onTap: { onTap(row, ch) }
+                )
+                .equatable()
+                .frame(width: channelWidth, height: trackerRowHeight)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(Color(nsColor: .separatorColor).opacity(0.8))
+                        .frame(width: 1)
+                }
+            }
+        }
+        .frame(height: trackerRowHeight)
+        .background(
+            isBar ? Color.primary.opacity(0.04) :
+            (isFourth ? Color.primary.opacity(0.02) : Color.clear)
+        )
     }
 }
 

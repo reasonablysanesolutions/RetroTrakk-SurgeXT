@@ -319,10 +319,90 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     /// Förladda projektets aktiva instrument vid uppstart så att de är redo
     /// omedelbart utan fördröjning eller fallback vid första uppspelning/tangenttryck.
+    /// Körs i bakgrunden — ett anrop blockerar aldrig main.
     public func prewarm(song: SongModel) {
         for inst in song.instruments {
-            _ = ensureInstrument(inst)
+            ensureInstrumentAsync(inst) { _ in }
         }
+    }
+
+    // MARK: - Async staging (klick/tangenttryck får aldrig blockera main)
+
+    /// Väntande completions per instrument-id. Dedupe: EN laddning per id oavsett
+    /// hur många tangenttryck som hinner komma under laddningen.
+    private var stagingCompletions: [Int: [(AVAudioNode?) -> Void]] = [:]
+
+    /// Säkerställer instrument utan att blockera anroparen. Träff i cache svarar
+    /// direkt; miss byggs på loader-kön (disk-IO + Surge DSP) och kopplas in i
+    /// grafen på main. Completions körs alltid på main.
+    func ensureInstrumentAsync(_ inst: InstrumentModel, completion: @escaping (AVAudioNode?) -> Void) {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in self?.ensureInstrumentAsync(inst, completion: completion) }
+            return
+        }
+        if inst.kind == .surge {
+            if let voice = surgePreviews[inst.id], sameSound(previewModels[inst.id], inst) {
+                completion(voice.node); return
+            }
+        } else if let node = previews[inst.id], sameSound(previewModels[inst.id], inst) {
+            completion(node); return
+        }
+        stagingCompletions[inst.id, default: []].append(completion)
+        guard stagingCompletions[inst.id]?.count == 1 else { return } // laddning pågår redan
+        loader.async { [weak self] in
+            guard let self else { return }
+            if inst.kind == .surge {
+                let result = Result { try self.makeSurgeVoice(inst) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    switch result {
+                    case .success(let voice):
+                        self.removeInstrument(id: inst.id)
+                        self.engine.attach(voice.node)
+                        self.engine.connect(voice.node, to: self.previewMixer, format: nil)
+                        self.surgePreviews[inst.id] = voice
+                        self.previewModels[inst.id] = inst
+                        self.start()
+                        self.flushStaging(id: inst.id, node: voice.node)
+                    case .failure(let error):
+                        self.statusText = "Kunde inte ladda \(inst.name): \(error.localizedDescription)"
+                        self.flushStaging(id: inst.id, node: nil)
+                    }
+                }
+            } else {
+                let result = Result { try self.makeInstrument(inst) }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    switch result {
+                    case .success(let node):
+                        self.removeInstrument(id: inst.id)
+                        self.engine.attach(node)
+                        // Preview har sin egen nod, routed to previewMixer so channelMixers remain untouched.
+                        self.engine.connect(node, to: self.previewMixer, format: nil)
+                        do {
+                            try self.loadInstrument(inst, into: node)
+                            self.configureInstrument(node, from: inst)
+                        } catch {
+                            self.statusText = "Kunde inte ladda \(inst.name): \(error.localizedDescription)"
+                            self.flushStaging(id: inst.id, node: nil)
+                            return
+                        }
+                        self.previews[inst.id] = node
+                        self.previewModels[inst.id] = inst
+                        self.start()
+                        self.flushStaging(id: inst.id, node: node)
+                    case .failure(let error):
+                        self.statusText = "Kunde inte ladda \(inst.name): \(error.localizedDescription)"
+                        self.flushStaging(id: inst.id, node: nil)
+                    }
+                }
+            }
+        }
+    }
+
+    private func flushStaging(id: Int, node: AVAudioNode?) {
+        let completions = stagingCompletions.removeValue(forKey: id) ?? []
+        for completion in completions { completion(node) }
     }
 
     /// Disk reads and sampler decoding do not block scrolling or typing.
@@ -366,20 +446,43 @@ public final class RetroTrakkAudioEngine: ObservableObject {
         previewModels.removeValue(forKey: id)
         previewHeld.removeValue(forKey: id)
     }
-    public func setProgram(_ inst: InstrumentModel) { _ = ensureInstrument(inst) }
+    public func setProgram(_ inst: InstrumentModel) { ensureInstrumentAsync(inst) { _ in } }
     public func loadSample(into inst: InstrumentModel, url: URL) {
         var updated = inst; updated.samplePath = url.path; updated.kind = .sample
-        _ = ensureInstrument(updated)
+        ensureInstrumentAsync(updated) { _ in }
     }
 
+    /// Förhandslyssning: träff spelar direkt, miss stegar asynkront och spelar
+    /// noten när noden är klar — OM noten fortfarande hålls (släppt under
+    /// laddning = tyst, ingen spöknot). Klick/tangenttryck blockeras aldrig.
     public func previewOn(inst: InstrumentModel, midiNote: UInt8, velocity: UInt8) {
         if inst.kind == .surge {
-            guard let voice = surgePreviews[inst.id] ?? (ensureInstrument(inst).flatMap { _ in surgePreviews[inst.id] }) else { return }
-            voice.noteOn(midiNote, velocity: velocity)
+            if let voice = surgePreviews[inst.id], sameSound(previewModels[inst.id], inst) {
+                voice.noteOn(midiNote, velocity: velocity)
+                previewHeld[inst.id, default: []].insert(midiNote)
+                return
+            }
             previewHeld[inst.id, default: []].insert(midiNote)
+            ensureInstrumentAsync(inst) { [weak self] _ in
+                guard let self, self.previewHeld[inst.id]?.contains(midiNote) == true,
+                      let voice = self.surgePreviews[inst.id], self.sameSound(self.previewModels[inst.id], inst) else { return }
+                voice.noteOn(midiNote, velocity: velocity)
+            }
             return
         }
-        guard let node = ensureInstrument(inst) as? AVAudioUnitMIDIInstrument else { return }
+        if let node = previews[inst.id], sameSound(previewModels[inst.id], inst) {
+            noteOnCached(node: node, inst: inst, midiNote: midiNote, velocity: velocity)
+            return
+        }
+        previewHeld[inst.id, default: []].insert(midiNote)
+        ensureInstrumentAsync(inst) { [weak self] _ in
+            guard let self, self.previewHeld[inst.id]?.contains(midiNote) == true,
+                  let node = self.previews[inst.id], self.sameSound(self.previewModels[inst.id], inst) else { return }
+            self.noteOnCached(node: node, inst: inst, midiNote: midiNote, velocity: velocity)
+        }
+    }
+
+    private func noteOnCached(node: AVAudioUnitMIDIInstrument, inst: InstrumentModel, midiNote: UInt8, velocity: UInt8) {
         let ch = UInt8(inst.midiChannel & 15)
         if previewHeld[inst.id, default: []].contains(midiNote) {
             node.sendMIDIEvent(0x80 | ch, data1: midiNote, data2: 0)
@@ -419,36 +522,70 @@ public final class RetroTrakkAudioEngine: ObservableObject {
 
     public func auditionOn(definition: InstrumentDefinition, note: UInt8 = 60, velocity: UInt8 = 100) {
         if definition.sourceType == .surge {
-            if auditionDefinition?.id != definition.id {
-                if let old = surgeAudition { old.stop(); engine.disconnectNodeOutput(old.node); engine.detach(old.node) }
-                guard let patch = SurgePresetCatalog.patchURL(relativePath: definition.sourceIdentifier),
-                      let voice = SurgeVoiceNode(patchURL: patch) else { return }
-                engine.attach(voice.node); engine.connect(voice.node, to: previewMixer, format: nil)
-                surgeAudition = voice; auditionDefinition = definition
+            if auditionDefinition?.id == definition.id, let voice = surgeAudition {
+                if !engine.isRunning { try? startEngineIfNeeded() }
+                voice.noteOn(note, velocity: velocity)
+                auditionHeldNotes.insert(note)
+                return
             }
-            if !engine.isRunning { try? startEngineIfNeeded() }
-            surgeAudition?.noteOn(note, velocity: velocity)
             auditionHeldNotes.insert(note)
+            let wantedID = definition.id
+            loader.async { [weak self] in
+                guard let self,
+                      let patch = SurgePresetCatalog.patchURL(relativePath: definition.sourceIdentifier),
+                      let voice = SurgeVoiceNode(patchURL: patch, sampleRate: self.engine.outputNode.outputFormat(forBus: 0).sampleRate) else { return }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.auditionHeldNotes.contains(note),
+                          self.auditionDefinition?.id != wantedID || self.surgeAudition == nil else {
+                        // Hann byta ljud under laddning: kassera.
+                        voice.stop()
+                        return
+                    }
+                    if let old = self.surgeAudition { old.stop(); self.engine.disconnectNodeOutput(old.node); self.engine.detach(old.node) }
+                    self.engine.attach(voice.node)
+                    self.engine.connect(voice.node, to: self.previewMixer, format: nil)
+                    self.surgeAudition = voice
+                    self.auditionDefinition = definition
+                    if !self.engine.isRunning { try? self.startEngineIfNeeded() }
+                    if self.auditionHeldNotes.contains(note) {
+                        voice.noteOn(note, velocity: velocity)
+                    }
+                }
+            }
             return
         }
         ensureAuditionEngine()
         if !engine.isRunning {
             try? startEngineIfNeeded()
         }
-        if auditionDefinition?.id != definition.id {
-            guard let sfURL = CoreSoundFont.resolveURL(identifier: definition.sourceIdentifier) else { return }
-            do {
-                try auditionSampler.loadSoundBankInstrument(at: sfURL, program: definition.program,
-                                                             bankMSB: definition.bankMSB, bankLSB: definition.bankLSB)
-                auditionDefinition = definition
-            } catch {
-                return
+        if auditionDefinition?.id == definition.id {
+            let ch = definition.defaultMidiChannel & 15
+            auditionSampler.sendMIDIEvent(0x90 | ch, data1: note, data2: max(1, velocity))
+            auditionHeldNotes.insert(note)
+            return
+        }
+        // Soundbank-laddning (disk-IO) sker aldrig på main: noten spelas när
+        // banken är klar, om den fortfarande hålls.
+        auditionHeldNotes.insert(note)
+        loader.async { [weak self] in
+            guard let self,
+                  let sfURL = CoreSoundFont.resolveURL(identifier: definition.sourceIdentifier) else { return }
+            let result = Result {
+                try self.auditionSampler.loadSoundBankInstrument(at: sfURL, program: definition.program,
+                                                                 bankMSB: definition.bankMSB, bankLSB: definition.bankLSB)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.auditionHeldNotes.contains(note) else { return }
+                switch result {
+                case .success:
+                    self.auditionDefinition = definition
+                    let ch = definition.defaultMidiChannel & 15
+                    self.auditionSampler.sendMIDIEvent(0x90 | ch, data1: note, data2: max(1, velocity))
+                case .failure:
+                    self.auditionHeldNotes.remove(note)
+                }
             }
         }
-        guard auditionDefinition?.id == definition.id else { return }
-        let ch = definition.defaultMidiChannel & 15
-        auditionSampler.sendMIDIEvent(0x90 | ch, data1: note, data2: max(1, velocity))
-        auditionHeldNotes.insert(note)
     }
 
     public func auditionOff(note: UInt8 = 60) {

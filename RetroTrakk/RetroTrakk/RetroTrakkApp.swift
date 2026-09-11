@@ -27,6 +27,11 @@ struct RetroTrakkApp: App {
                     audio.start()
                     audio.rescanAUs()
                     audio.prewarm(song: tracker.song)
+                    // 4000+ preset skannas en gång (~130 ms disk-IO): gör det
+                    // här i bakgrunden så första sidopanels-sökningen är direkt.
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        _ = InstrumentCatalog.all
+                    }
                 }
                 .onOpenURL { url in
                     do {

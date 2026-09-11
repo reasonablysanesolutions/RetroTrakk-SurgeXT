@@ -19,6 +19,11 @@ struct InstrumentSidebar: View {
 
     @State private var selection: SidebarCategorySelection = .category(.synthBass)
     @State private var search = ""
+    /// Memoizerat sökresultat: `visibleInstruments` beräknas vid varje
+    /// body-körning — utan cache skulle varje låtredigering söka om över
+    /// 4000+ preset helt i onödan. Söks endast vid faktisk frågeändring.
+    @State private var cachedSearch = ""
+    @State private var cachedResults: [InstrumentDefinition] = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -91,6 +96,16 @@ struct InstrumentSidebar: View {
         }
         .onChange(of: tracker.cursorChannel) { _, _ in
             syncCategoryToSelection()
+        }
+        .onChange(of: search) { _, q in
+            // Progressiv narrowing: vid framåttypning söks endast i förra
+            // resultatet (krympande mängd) i stället för alla 4000+ preset.
+            if !q.isEmpty && !cachedSearch.isEmpty && q.hasPrefix(cachedSearch) {
+                cachedResults = cachedResults.filter { $0.matches(query: q) }
+            } else {
+                cachedResults = q.isEmpty ? [] : InstrumentCatalog.search(q)
+            }
+            cachedSearch = q
         }
     }
 
@@ -176,7 +191,12 @@ struct InstrumentSidebar: View {
 
     private var visibleInstruments: [InstrumentDefinition] {
         if !search.isEmpty {
-            return InstrumentCatalog.search(search)
+            // Cachet per fråga (uppdateras i onChange) — aldrig omsökning
+            // vid orelaterade body-körningar (t.ex. varje notinmatning).
+            if search != cachedSearch {
+                return InstrumentCatalog.search(search)
+            }
+            return cachedResults
         }
         switch selection {
         case .category(let cat):
@@ -354,14 +374,117 @@ struct InstrumentSidebar: View {
 struct ChannelVolumeRow: View {
     @EnvironmentObject var tracker: TrackerEngine
     let channel: Int
+    /// Lokal drag-state: modellen skrivs ENDAST vid släpp, så volymdrag
+    /// aldrig tvingar hela appen att ritas om i sliders takt.
+    @State private var volume: Double = 0.8
 
     var body: some View {
-        if let idx = tracker.song.instruments.firstIndex(where: { $0.id == tracker.song.channelInstruments[channel] }) {
+        if instrumentIndex != nil {
             HStack {
                 Text("Volym").font(.caption).foregroundStyle(.secondary)
-                Slider(value: $tracker.song.instruments[idx].volume, in: 0...1)
+                Slider(value: $volume, in: 0...1) { editing in
+                    if !editing { commit() }
+                }
             }
+            .onAppear { resync() }
+            .onChange(of: tracker.song.instruments.map(\.volume)) { _, _ in resync() }
         }
+    }
+
+    private var instrumentIndex: Int? {
+        tracker.song.instruments.firstIndex(where: { $0.id == tracker.song.channelInstruments[channel] })
+    }
+
+    private func resync() {
+        if let idx = instrumentIndex {
+            let v = tracker.song.instruments[idx].volume
+            if abs(volume - v) > 0.001 { volume = v }
+        }
+    }
+
+    private func commit() {
+        if let idx = instrumentIndex {
+            tracker.song.instruments[idx].volume = volume
+        }
+    }
+}
+
+// MARK: - Kanalstrip (volymdrag utan UI-storm)
+
+/// En kanals reglage. Volym-slidern skriver till mixern DIREKT under drag
+/// (hörbar återkoppling, noll SwiftUI-publiceringar) och committar till
+/// modellen först vid släpp. Knappar/togglar är diskreta och skriver direkt.
+struct ChannelStripView: View {
+    @EnvironmentObject var tracker: TrackerEngine
+    let channel: Int
+    @State private var volume: Double = 0.8
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text("\(channel + 1)").font(.caption).monospacedDigit()
+                .frame(width: 14)
+                .foregroundStyle(.secondary)
+            Toggle("", isOn: Binding(
+                get: { tracker.song.channelEnabled[channel] },
+                set: {
+                    tracker.song.channelEnabled[channel] = $0
+                    tracker.updateChannelState()
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .labelsHidden()
+            .frame(width: 30)
+            .help("Slå av/på kanal \(channel + 1)")
+            Slider(value: $volume, in: 0...1) { editing in
+                if !editing { commit() }
+            }
+            .frame(width: 56)
+            .onChange(of: volume) { _, v in liveApply(v) }
+            .help("Kanalvolym (committas vid släpp)")
+            Button(tracker.song.channelMute[channel] ? "M" : "m") {
+                tracker.song.channelMute[channel].toggle()
+                tracker.updateChannelState()
+            }
+            .buttonStyle(.plain).font(.caption2)
+            .foregroundStyle(tracker.song.channelMute[channel] ? .red : .secondary)
+            .frame(width: 16)
+            Button(tracker.song.channelSolo[channel] ? "S" : "s") {
+                tracker.song.channelSolo[channel].toggle()
+                tracker.updateChannelState()
+            }
+            .buttonStyle(.plain).font(.caption2)
+            .foregroundStyle(tracker.song.channelSolo[channel] ? .green : .secondary)
+            .frame(width: 16)
+        }
+        .opacity(tracker.song.channelEnabled[channel] ? 1 : 0.45)
+        .onAppear { resync() }
+        .onChange(of: tracker.song.channelVolume[channel]) { _, v in
+            if abs(volume - v) > 0.001 { volume = v }
+        }
+    }
+
+    /// Hörbar återkoppling utan publicering — aldrig genom mutade kanaler.
+    private func liveApply(_ v: Double) {
+        guard isAudible else { return }
+        tracker.audio?.channelMixers[channel].outputVolume = Float(v)
+    }
+
+    private var isAudible: Bool {
+        let song = tracker.song
+        let solo = song.channelSolo.contains(true)
+        return song.channelEnabled[channel] && !song.channelMute[channel] &&
+            (!solo || song.channelSolo[channel])
+    }
+
+    private func resync() {
+        let v = tracker.song.channelVolume[channel]
+        if abs(volume - v) > 0.001 { volume = v }
+    }
+
+    private func commit() {
+        tracker.song.channelVolume[channel] = volume
+        tracker.updateChannelState()
     }
 }
 
@@ -399,32 +522,7 @@ struct OrderSidebar: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Kanaler").font(.subheadline).bold()
                 ForEach(0..<SongModel.channelCount, id: \.self) { ch in
-                    HStack(spacing: 4) {
-                        Text("\(ch + 1)").font(.caption).monospacedDigit()
-                            .frame(width: 14)
-                            .foregroundStyle(.secondary)
-                        Toggle("", isOn: $tracker.song.channelEnabled[ch])
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
-                            .labelsHidden()
-                            .frame(width: 30)
-                            .help("Slå av/på kanal \(ch + 1)")
-                        Slider(value: $tracker.song.channelVolume[ch], in: 0...1)
-                            .frame(width: 56)
-                        Button(tracker.song.channelMute[ch] ? "M" : "m") {
-                            tracker.song.channelMute[ch].toggle()
-                        }
-                        .buttonStyle(.plain).font(.caption2)
-                        .foregroundStyle(tracker.song.channelMute[ch] ? .red : .secondary)
-                        .frame(width: 16)
-                        Button(tracker.song.channelSolo[ch] ? "S" : "s") {
-                            tracker.song.channelSolo[ch].toggle()
-                        }
-                        .buttonStyle(.plain).font(.caption2)
-                        .foregroundStyle(tracker.song.channelSolo[ch] ? .green : .secondary)
-                        .frame(width: 16)
-                    }
-                    .opacity(tracker.song.channelEnabled[ch] ? 1 : 0.45)
+                    ChannelStripView(channel: ch)
                 }
                 HStack {
                     Button("Rensa pattern") { tracker.clearPattern() }
